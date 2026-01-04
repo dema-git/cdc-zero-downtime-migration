@@ -9,6 +9,6 @@ RUN apt-get update && \
     pip install --no-cache-dir sqlalchemy psycopg2-binary && \
     rm -rf /var/lib/apt/lists/*
 
-RUN chmod +x wait-for-it-clean.sh
+RUN chmod +x wait-for-it.sh
 
-CMD ["./wait-for-it-clean.sh", "db_clean:5432", "--", "python", "init_db_clean.py"]
+CMD ["./wait-for-it.sh", "db_clean:5432", "clean", "--", "python", "init_db_clean.py"]

@@ -1,5 +1,9 @@
 #!/bin/bash
+
 host_port=$1
+shift
+
+db_name=$1
 shift
 
 IFS=':' read host port <<< "$host_port"
@@ -11,6 +15,6 @@ until nc -z "$host" "$port"; do
   sleep 2
 done
 
-echo "Connection to legacy database successful!"
+echo "Connection to $db_name database successful!"
 
 exec "$@"
