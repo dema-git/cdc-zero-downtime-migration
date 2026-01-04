@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY . /app
+
+RUN apt-get update && \
+    apt-get install -y netcat-openbsd && \
+    pip install --no-cache-dir sqlalchemy psycopg2-binary && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN chmod +x wait-for-it-legacy.sh
+
+CMD ["./wait-for-it-legacy.sh", "db_legacy:5432", "--", "python", "init_db_legacy.py"]

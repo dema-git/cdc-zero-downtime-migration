@@ -31,6 +31,28 @@ services:
     networks:
       - app_network
 
+  db_initializer_legacy:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.legacy
+    env_file:
+      - .env
+    depends_on:
+      - db_legacy
+    networks:
+      - app_network
+
+  db_initializer_clean:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.clean
+    env_file:
+      - .env
+    depends_on:
+      - db_clean
+    networks:
+      - app_network
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin_panel_web
@@ -42,7 +64,6 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     volumes:
       - pgadmin-data:/var/lib/pgadmin
-      - ./scripts:/scripts
     networks:
       - app_network
 
