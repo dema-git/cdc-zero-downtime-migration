@@ -11,9 +11,11 @@ services:
       POSTGRES_DB: legacy
     volumes:
       - ./pgdata_first:/var/lib/postgresql/data
+      - ./db/legacy/init:/docker-entrypoint-initdb.d:ro
       - ./shared_logs:/shared/logs
     networks:
       - app_network
+
 
   db_clean:
     image: postgres:16
@@ -31,16 +33,6 @@ services:
     networks:
       - app_network
 
-  db_initializer_legacy:
-    build:
-      context: ./app
-      dockerfile: Dockerfile.legacy
-    env_file:
-      - .env
-    depends_on:
-      - db_legacy
-    networks:
-      - app_network
 
   db_initializer_clean:
     build:
