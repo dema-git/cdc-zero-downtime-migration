@@ -36,8 +36,8 @@ services:
 
   db_initializer_clean:
     build:
-      context: ./app
-      dockerfile: Dockerfile.clean
+      context: .
+      dockerfile: app/Dockerfile.clean
     env_file:
       - .env
     depends_on:
