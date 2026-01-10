@@ -4,7 +4,6 @@ WORKDIR /app
 
 RUN apt-get update && \
     apt-get install -y netcat-openbsd && \
-    pip install --no-cache-dir sqlalchemy psycopg2-binary && \
     rm -rf /var/lib/apt/lists/*
 
 COPY app/requirements.txt .
