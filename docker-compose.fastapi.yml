@@ -2,7 +2,7 @@ services:
   api_app:
     build:
       context: ./app
-    container_name: api_app
+    container_name: faker_app
     ports:
       - "8000:8000"
     restart: always

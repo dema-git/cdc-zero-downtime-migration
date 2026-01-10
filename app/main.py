@@ -1,0 +1,31 @@
+import asyncio
+import random
+import logging
+from fastapi import FastAPI
+
+from db import SessionLocal
+from services.fake_data_generator import generate_customers, generate_orders
+
+app = FastAPI()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def auto_generator():
+    while True:
+        await asyncio.sleep(random.uniform(1, 4))
+        db = SessionLocal()
+        try:
+            customers_count = random.randint(1, 2)
+            customers = generate_customers(db, count=customers_count)
+            orders_count = random.randint(2, 10)
+            generate_orders(db, customers, count=orders_count)
+        finally:
+            db.close()
+
+        logger.info(f"Legacy orders generated: {len(customers)} customers, {orders_count} orders")
+
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(auto_generator())
