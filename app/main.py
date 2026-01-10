@@ -3,8 +3,8 @@ import random
 import logging
 from fastapi import FastAPI
 
-from db import SessionLocal
-from services.fake_data_generator import generate_customers, generate_orders
+from app.db import SessionLocal
+from app.services.fake_data_generator import generate_customers, generate_orders
 
 app = FastAPI()
 

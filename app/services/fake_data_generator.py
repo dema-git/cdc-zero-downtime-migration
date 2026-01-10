@@ -2,7 +2,7 @@ import random
 from faker import Faker
 from sqlalchemy.orm import Session
 
-from models import Customer, Order
+from app.models import Customer, Order
 
 fake = Faker()
 

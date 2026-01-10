@@ -1,7 +1,10 @@
 services:
   api_app:
     build:
-      context: ./app
+      context: .
+      dockerfile: app/Dockerfile
+    env_file:
+        - .env
     container_name: faker_app
     ports:
       - "8000:8000"
