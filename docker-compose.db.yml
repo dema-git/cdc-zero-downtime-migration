@@ -13,6 +13,14 @@ services:
       - ./pgdata_first:/var/lib/postgresql/data
       - ./db/legacy/init:/docker-entrypoint-initdb.d:ro
       - ./shared_logs:/shared/logs
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "max_wal_senders=10"
     networks:
       - app_network
 
