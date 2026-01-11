@@ -40,6 +40,7 @@ services:
   connect:
     image: debezium/connect:2.7.3.Final
     container_name: my-connect
+    restart: always
     ports:
       - "8083:8083"
     environment:
@@ -53,11 +54,25 @@ services:
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
+
       CONNECT_PLUGIN_PATH: /kafka/connect
     depends_on:
       - kafka
+    volumes:
+      - connect-data:/kafka/connect
     networks:
       - app_network
+
+
+  init-connector:
+    build:
+      context: .
+      dockerfile: kafdrop/Dockerfile.connect
+    volumes:
+      - ./scripts:/scripts
+    networks:
+      - app_network
+
 
 networks:
   app_network:
@@ -66,3 +81,5 @@ networks:
 
 volumes:
   kafka_data:
+  connect-plugins:
+  connect-data:
