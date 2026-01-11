@@ -1,0 +1,22 @@
+{
+  "name": "my_postgres_connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "db_legacy",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "pass12345@1",
+    "database.dbname": "legacy",
+    "database.server.name": "db_legacy",
+    "plugin.name": "pgoutput",
+    "slot.name": "my_slot",
+    "publication.name": "my_publication",
+    "table.include.list": "public.legacy_orders",
+    "topic.prefix": "my_prefix",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false",
+    "snapshot.mode": "initial"
+  }
+}
