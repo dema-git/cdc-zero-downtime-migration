@@ -20,6 +20,8 @@ async def auto_generator():
             customers = generate_customers(db, count=customers_count)
             orders_count = random.randint(2, 10)
             generate_orders(db, customers, count=orders_count)
+
+            db.commit()
         finally:
             db.close()
 
