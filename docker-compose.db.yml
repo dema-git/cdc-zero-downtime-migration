@@ -37,21 +37,11 @@ services:
       POSTGRES_DB: clean
     volumes:
       - ./pgdata_second:/var/lib/postgresql/data
+      - ./db/clean/init:/docker-entrypoint-initdb.d:ro
       - ./shared_logs:/shared/logs
     networks:
       - app_network
 
-
-  db_initializer_clean:
-    build:
-      context: .
-      dockerfile: app/Dockerfile.clean
-    env_file:
-      - .env
-    depends_on:
-      - db_clean
-    networks:
-      - app_network
 
   pgadmin:
     image: dpage/pgadmin4
