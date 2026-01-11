@@ -1,15 +1,12 @@
 FROM debian:bullseye-slim
 
-# Устанавливаем необходимые утилиты
 RUN apt-get update && \
     apt-get install -y curl jq netcat-openbsd && \
     rm -rf /var/lib/apt/lists/*
 
-# Копируем скрипты
+
 COPY scripts /scripts
 
-# Делаем скрипты исполняемыми
 RUN chmod +x /scripts/*.sh
 
-# ENTRYPOINT: сначала wait-for-it, потом wait-for-connect
 ENTRYPOINT ["/scripts/wait-for-it.sh", "connect:8083", "--", "/scripts/wait-for-connect.sh", "connect", "8083", "/scripts/my_postgres_connector.json"]
