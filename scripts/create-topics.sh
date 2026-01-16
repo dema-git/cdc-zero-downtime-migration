@@ -2,7 +2,7 @@
 set -e
 
 BROKER="kafka:9092"
-TOPICS=("cleared_orders" "cleared_orders")
+TOPICS=("cleared_customers" "cleared_orders")
 
 echo "Waiting 5 seconds for Kafka..."
 sleep 5
