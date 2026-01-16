@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 from .kafka_consumer import start_consumer_loop, get_messages
+from .services.manage_lagacy_data import manage_legacy_data_main
 
 from app.db import SessionLocal
 from app.services.fake_data_generator import generate_customers, generate_orders
@@ -41,4 +42,5 @@ async def startup_event():
 @app.get("/cdc/events")
 def cdc_events():
     batch = get_messages()
+    manage_legacy_data_main(batch)
     return {"count": len(batch), "events": batch}
