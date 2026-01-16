@@ -74,6 +74,16 @@ services:
       - app_network
 
 
+  init-topics:
+    build:
+      context: .
+      dockerfile: kafdrop/Dockerfile.topics
+    volumes:
+      - ./scripts:/scripts
+    networks:
+      - app_network
+
+
 networks:
   app_network:
     external: true
