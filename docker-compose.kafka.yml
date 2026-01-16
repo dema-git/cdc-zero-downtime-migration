@@ -70,6 +70,7 @@ services:
       dockerfile: kafdrop/Dockerfile.connect
     volumes:
       - ./scripts:/scripts
+      - ./connector:/connector
     networks:
       - app_network
 

@@ -6,7 +6,9 @@ RUN apt-get update && \
 
 
 COPY scripts /scripts
+COPY connector /connector
 
 RUN chmod +x /scripts/*.sh
+RUN chmod +x /connector/*.sh
 
-ENTRYPOINT ["/scripts/wait-for-it.sh", "connect:8083", "--", "/scripts/wait-for-connect.sh", "connect", "8083", "/scripts/my_postgres_connector.json"]
+ENTRYPOINT ["/scripts/wait-for-it.sh", "connect:8083", "--", "/scripts/wait-for-connect.sh", "connect", "8083", "/connector/my_postgres_connector.json"]
