@@ -2,10 +2,10 @@
 set -e
 
 BROKER="kafka:9092"
-TOPICS=("topic1" "topic2" "topic3")
+TOPICS=("cleared_orders" "cleared_orders")
 
-echo "Waiting 10 seconds for Kafka..."
-sleep 10
+echo "Waiting 5 seconds for Kafka..."
+sleep 5
 
 KAFKA_BIN="/opt/kafka_2.13-3.7.2/bin"
 
