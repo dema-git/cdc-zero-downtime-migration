@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger("app.consumer")
 
-TOPIC = "my_prefix.public.legacy_orders"
+TOPICS = ["cdc.public.legacy_orders", "cdc.public.legacy_customers"]
 BOOTSTRAP = "kafka:9092"
 GROUP_ID = "time-window-consumer"
 
@@ -19,7 +19,7 @@ consumer = Consumer({
     "auto.offset.reset": "earliest"
 })
 
-consumer.subscribe([TOPIC])
+consumer.subscribe(TOPICS)
 
 # message queue for FastAPI
 message_queue = []
