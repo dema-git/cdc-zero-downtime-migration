@@ -27,6 +27,29 @@ message_queue = []
 queue_lock = threading.Lock()
 
 
+def build_cdc_event(m: dict) -> CDCEvent:
+    k = m.get("key")
+    if k is not None:
+        k = json.loads(k.decode("utf-8"))
+
+    payload = m["data"]
+    source_data = payload.get("source", {})
+
+    source = Source(
+        db=source_data.get("db", ""),
+        schema=source_data.get("schema", ""),
+        table=source_data.get("table", "")
+    )
+
+    return CDCEvent(
+        key=k,
+        before=payload.get("before"),
+        after=payload.get("after"),
+        source=source,
+        op=payload.get("op", "")
+    )
+
+
 def consume_loop():
     # Background consumer: read messages and add to queue
     while True:
@@ -67,38 +90,11 @@ def get_messages() -> list[CDCEvent]:
         batch = message_queue.copy()
         message_queue.clear()
 
-    result = []
+    result = [build_cdc_event(msg) for msg in batch]
 
     # Collect the highest processed offset per topic-partition
     offsets = defaultdict(lambda: -1)
 
-
-    for m in batch:
-        key_tp = (m["topic"], m["partition"])
-        offsets[key_tp] = max(offsets[key_tp], m["offset"])
-
-        k = m.get("key")
-        if k is not None:
-            k = json.loads(k.decode("utf-8"))
-
-        payload = m["data"]
-        source_data = payload.get("source", {})
-
-        source = Source(
-            db=source_data.get("db", ""),
-            schema=source_data.get("schema", ""),
-            table=source_data.get("table", "")
-        )
-
-        event = CDCEvent(
-            key=k,
-            before=payload.get("before"),
-            after=payload.get("after"),
-            source=source,
-            op=payload.get("op", "")
-        )
-
-        result.append(event)
 
     # Commit offsets
     # Kafka expects the NEXT offset to be committed
