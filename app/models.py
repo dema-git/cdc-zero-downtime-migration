@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
-
+import numpy as np
 
 ##############################
 # LEGACY DATABASE MODELS
@@ -117,9 +117,10 @@ class CDCEvent:
             return None
 
         full_name = data.pop("full_name", "")
-        parts = full_name.strip().split()
-        first_name = parts[0] if parts else ""
-        last_name = parts[-1] if len(parts) > 1 else ""
+
+        name_array = np.array(full_name.strip().split())
+        first_name = name_array[0] if name_array.size > 0 else ""
+        last_name = name_array[-1] if name_array.size > 1 else ""
 
         new_data = data.copy()
         new_data["first_name"] = first_name

@@ -8,6 +8,7 @@ producer = Producer(conf)
 topic = "cleared_customers"
 
 
+
 def before_data(data: dict):
     table = data.get("table")
     for item in data.get("data", []):
@@ -23,9 +24,14 @@ def after_data(data: dict):
 
 
 def manage_legacy_data_main(data_batch: list[CDCEvent]):
-    for event in data_batch:
-        if event.table_name == 'legacy_customers':
-            data_to_send = event.with_split_name()
-            producer.produce(topic, json.dumps(data_to_send).encode("utf-8"))
+
+    messages_to_send = [
+        json.dumps(event.with_split_name()).encode("utf-8")
+        for event in data_batch
+        if event.table_name == "legacy_customers" and event.with_split_name() is not None
+    ]
+
+    for msg in messages_to_send:
+        producer.produce(topic, msg)
 
     producer.flush()
