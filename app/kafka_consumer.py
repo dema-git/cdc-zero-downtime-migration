@@ -41,6 +41,7 @@ def consume_loop():
 
         with queue_lock:
             message_queue.append({
+                "key": msg.key(),
                 "data": payload,
                 "topic": msg.topic(),
                 "partition": msg.partition(),
@@ -65,8 +66,7 @@ def get_messages():
         batch = message_queue.copy()
         message_queue.clear()
 
-    data_batch = [m["data"] for m in batch]
-
+    result = []
 
     # Collect the highest processed offset per topic-partition
     offsets = defaultdict(lambda: -1)
@@ -74,6 +74,16 @@ def get_messages():
     for m in batch:
         key = (m["topic"], m["partition"])
         offsets[key] = max(offsets[key], m["offset"])
+
+        key = m["key"]
+        if key is not None:
+            key = json.loads(key.decode("utf-8"))
+
+
+        result.append({
+            "key": key,
+            "data": m["data"]
+        })
 
     # Commit offsets
     # Kafka expects the NEXT offset to be committed
@@ -84,4 +94,4 @@ def get_messages():
 
     consumer.commit(offsets=tps)
 
-    return data_batch
+    return result

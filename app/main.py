@@ -14,7 +14,6 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-start_consumer_loop()
 
 async def auto_generator():
     while True:
@@ -35,6 +34,7 @@ async def auto_generator():
 
 @app.on_event("startup")
 async def startup_event():
+    start_consumer_loop()
     asyncio.create_task(auto_generator())
 
 
