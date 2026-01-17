@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from confluent_kafka import Consumer, TopicPartition
 import logging
+from .models import Source, CDCEvent
 
 logger = logging.getLogger("app.consumer")
 
@@ -56,7 +57,7 @@ def start_consumer_loop():
     ).start()
 
 
-def get_messages():
+def get_messages() -> list[CDCEvent]:
 
     # Safely take all messages from the queue
     with queue_lock:
@@ -71,19 +72,33 @@ def get_messages():
     # Collect the highest processed offset per topic-partition
     offsets = defaultdict(lambda: -1)
 
+
     for m in batch:
-        key = (m["topic"], m["partition"])
-        offsets[key] = max(offsets[key], m["offset"])
+        key_tp = (m["topic"], m["partition"])
+        offsets[key_tp] = max(offsets[key_tp], m["offset"])
 
-        key = m["key"]
-        if key is not None:
-            key = json.loads(key.decode("utf-8"))
+        k = m.get("key")
+        if k is not None:
+            k = json.loads(k.decode("utf-8"))
 
+        payload = m["data"]
+        source_data = payload.get("source", {})
 
-        result.append({
-            "key": key,
-            "data": m["data"]
-        })
+        source = Source(
+            db=source_data.get("db", ""),
+            schema=source_data.get("schema", ""),
+            table=source_data.get("table", "")
+        )
+
+        event = CDCEvent(
+            key=k,
+            before=payload.get("before"),
+            after=payload.get("after"),
+            source=source,
+            operation=payload.get("op", "")
+        )
+
+        result.append(event)
 
     # Commit offsets
     # Kafka expects the NEXT offset to be committed
