@@ -70,11 +70,11 @@ class CDCEvent:
     before: Optional[Dict[str, Any]]
     after: Optional[Dict[str, Any]]
     source: Source
-    operation: str
+    op: str
 
     @property
     def op_type(self) -> str:
-        return self.operation
+        return self.op
 
     @property
     def table_name(self) -> str:
@@ -98,6 +98,40 @@ class CDCEvent:
     def has_before(self) -> bool:
         return self.before is not None
 
-
     def has_after(self) -> bool:
         return self.after is not None
+
+    def get_data(self) -> Optional[Dict[str, Any]]:
+        if self.op_type == "c":
+            return self.after
+        if self.op_type == "u":
+            return self.after
+        if self.op_type == "d":
+            return self.before
+        return None
+
+    def with_split_name(self) -> Optional[Dict[str, Any]]:
+
+        data = self.get_data()
+        if not data:
+            return None
+
+        full_name = data.pop("full_name", "")
+        parts = full_name.strip().split()
+        first_name = parts[0] if parts else ""
+        last_name = parts[-1] if len(parts) > 1 else ""
+
+        new_data = data.copy()
+        new_data["first_name"] = first_name
+        new_data["last_name"] = last_name
+
+        return {
+            "key": self.key,
+            "data": new_data,
+            "source": {
+                "db": self.source.db,
+                "schema": self.source.schema,
+                "table": self.source.table
+            },
+            "op": self.op,
+        }

@@ -1,7 +1,4 @@
-
-
-
-
+from app.models import CDCEvent
 
 def before_data(data: dict):
     table = data.get("table")
@@ -17,10 +14,8 @@ def after_data(data: dict):
         print("table:", table)
 
 
-def manage_legacy_data_main(data_batch: list[dict]):
+def manage_legacy_data_main(data_batch: list[CDCEvent]):
     for event in data_batch:
-        data = event.get("data")
-        source = event.get("source")
-        table = source.get("table")
-        print("table:", table)
-        print("data:", data)
+        if event.table_name == 'legacy_customers':
+            data_to_send = event.with_split_name()
+

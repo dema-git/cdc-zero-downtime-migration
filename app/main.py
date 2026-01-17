@@ -42,5 +42,5 @@ async def startup_event():
 @app.get("/cdc/events")
 def cdc_events():
     batch = get_messages()
-    # manage_legacy_data_main(batch)
+    manage_legacy_data_main(batch)
     return {"count": len(batch), "events": batch}

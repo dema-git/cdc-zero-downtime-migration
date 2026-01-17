@@ -95,7 +95,7 @@ def get_messages() -> list[CDCEvent]:
             before=payload.get("before"),
             after=payload.get("after"),
             source=source,
-            operation=payload.get("op", "")
+            op=payload.get("op", "")
         )
 
         result.append(event)
