@@ -32,26 +32,17 @@ def build_cdc_event(m: dict) -> CDCEvent:
     if k is not None:
         k = json.loads(k.decode("utf-8"))
 
-    payload = m["data"]
-    source_data = payload.get("source", {})
-
-    source = Source(
-        db=source_data.get("db", ""),
-        schema=source_data.get("schema", ""),
-        table=source_data.get("table", "")
-    )
+    value = m["data"]           # это уже {"schema": ..., "payload": ...}
+    schema = value.get("schema") or {}
+    payload = value.get("payload") or {}
 
     return CDCEvent(
         key=k,
-        before=payload.get("before"),
-        after=payload.get("after"),
-        source=source,
-        op=payload.get("op", "")
+        schema=schema,
+        payload=payload,
     )
 
-
 def consume_loop():
-    # Background consumer: read messages and add to queue
     while True:
         msg = consumer.poll(1.0)
 
@@ -82,7 +73,6 @@ def start_consumer_loop():
 
 def get_messages() -> list[CDCEvent]:
 
-    # Safely take all messages from the queue
     with queue_lock:
         if not message_queue:
             return []
@@ -92,17 +82,14 @@ def get_messages() -> list[CDCEvent]:
 
     result = [build_cdc_event(msg) for msg in batch]
 
-    # Collect the highest processed offset per topic-partition
     offsets = defaultdict(lambda: -1)
 
-
     # Commit offsets
-    # Kafka expects the NEXT offset to be committed
     tps = [
         TopicPartition(topic, partition, offset + 1)
         for (topic, partition), offset in offsets.items()
     ]
-
-    consumer.commit(offsets=tps)
+    if tps:
+        consumer.commit(offsets=tps)
 
     return result
