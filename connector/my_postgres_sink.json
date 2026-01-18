@@ -13,8 +13,9 @@
     "table.name.format": "public.customers",
     "schema.evolution": "none",
 
-    "insert.mode": "insert",
-    "primary.key.mode": "none",
+    "insert.mode": "upsert",
+    "primary.key.mode": "record_value",
+    "primary.key.fields": "id",
 
     "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.converter.schemas.enable": "true",
