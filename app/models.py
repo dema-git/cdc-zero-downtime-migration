@@ -3,8 +3,8 @@ from sqlalchemy import ForeignKey, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
-import numpy as np
+from typing import Any, Dict, Optional, Tuple, List
+
 
 ##############################
 # LEGACY DATABASE MODELS
@@ -57,7 +57,9 @@ class Order(Base):
 # DATACLASSES
 ##################
 
-@dataclass
+JsonDict = Dict[str, Any]
+
+@dataclass(frozen=True)
 class Source:
     db: str
     schema: str
@@ -66,73 +68,92 @@ class Source:
 
 @dataclass
 class CDCEvent:
-    key: Optional[Dict[str, Any]]
-    before: Optional[Dict[str, Any]]
-    after: Optional[Dict[str, Any]]
-    source: Source
-    op: str
+    schema: JsonDict
+    payload: JsonDict
+    key: Optional[JsonDict] = None
+
+
+    @property
+    def op(self) -> str:
+        return self.payload.get("op", "")
+
 
     @property
     def op_type(self) -> str:
         return self.op
 
+
+    @property
+    def source(self) -> Source:
+        s = self.payload.get("source") or {}
+        return Source(
+            db=s.get("db", ""),
+            schema=s.get("schema", ""),
+            table=s.get("table", ""),
+        )
+
+
     @property
     def table_name(self) -> str:
         return self.source.table
 
-    def get_insert_data(self) -> Optional[Dict[str, Any]]:
-        if self.op_type == "c":
-            return self.after
-        return None
 
-    def get_update_data(self) -> Optional[Dict[str, Any]]:
-        if self.op_type == "u":
-            return self.after
-        return None
-
-    def get_delete_data(self) -> Optional[Dict[str, Any]]:
+    def data(self) -> Optional[JsonDict]:
+        if self.op_type in ("c", "u", "r"):
+            return self.payload.get("after")
         if self.op_type == "d":
-            return self.before
+            return self.payload.get("before")
         return None
 
-    def has_before(self) -> bool:
-        return self.before is not None
 
-    def has_after(self) -> bool:
-        return self.after is not None
+    @staticmethod
+    def _split_full_name(full_name: str) -> Tuple[str, str]:
+        parts = full_name.strip().split()
+        if not parts:
+            return "", ""
+        if len(parts) == 1:
+            return parts[0], ""
+        return parts[0], parts[-1]
 
-    def get_data(self) -> Optional[Dict[str, Any]]:
-        if self.op_type == "c":
-            return self.after
-        if self.op_type == "u":
-            return self.after
-        if self.op_type == "d":
-            return self.before
-        return None
 
-    def with_split_name(self) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    def _patch_struct_fields(struct_fields: List[JsonDict]) -> None:
 
-        data = self.get_data()
-        if not data:
-            return None
+        struct_fields[:] = [f for f in struct_fields if f.get("field") != "full_name"]
 
-        full_name = data.pop("full_name", "")
+        existing = {f.get("field") for f in struct_fields}
+        if "first_name" not in existing:
+            struct_fields.append({"type": "string", "optional": True, "field": "first_name"})
+        if "last_name" not in existing:
+            struct_fields.append({"type": "string", "optional": True, "field": "last_name"})
 
-        name_array = np.array(full_name.strip().split())
-        first_name = name_array[0] if name_array.size > 0 else ""
-        last_name = name_array[-1] if name_array.size > 1 else ""
 
-        new_data = data.copy()
-        new_data["first_name"] = first_name
-        new_data["last_name"] = last_name
+    def _patch_envelope_schema(self) -> None:
 
-        return {
-            "key": self.key,
-            "data": new_data,
-            "source": {
-                "db": self.source.db,
-                "schema": self.source.schema,
-                "table": self.source.table
-            },
-            "op": self.op,
-        }
+        schema_fields = self.schema.get("fields", [])
+        for top_field in schema_fields:
+            if top_field.get("field") in ("before", "after") and top_field.get("type") == "struct":
+                struct_fields = top_field.get("fields", [])
+                if isinstance(struct_fields, list):
+                    self._patch_struct_fields(struct_fields)
+
+
+    def split_full_name(self) -> bool:
+
+        row = self.data()
+        if not row or "full_name" not in row:
+            return False
+
+        full = row.get("full_name") or ""
+        first, last = self._split_full_name(full)
+
+        row.pop("full_name", None)
+        row["first_name"] = first
+        row["last_name"] = last
+
+        self._patch_envelope_schema()
+        return True
+
+
+    def to_message(self) -> JsonDict:
+        return {"schema": self.schema, "payload": self.payload}
