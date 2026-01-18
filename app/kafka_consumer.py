@@ -32,7 +32,7 @@ def build_cdc_event(m: dict) -> CDCEvent:
     if k is not None:
         k = json.loads(k.decode("utf-8"))
 
-    value = m["data"]           # это уже {"schema": ..., "payload": ...}
+    value = m["data"]
     schema = value.get("schema") or {}
     payload = value.get("payload") or {}
 
@@ -72,7 +72,6 @@ def start_consumer_loop():
 
 
 def get_messages() -> list[CDCEvent]:
-
     with queue_lock:
         if not message_queue:
             return []
@@ -80,16 +79,24 @@ def get_messages() -> list[CDCEvent]:
         batch = message_queue.copy()
         message_queue.clear()
 
-    result = [build_cdc_event(msg) for msg in batch]
+    results: list[CDCEvent] = []
 
-    offsets = defaultdict(lambda: -1)
+    offsets: dict[tuple[str, int], int] = defaultdict(lambda: -1)
 
-    # Commit offsets
-    tps = [
-        TopicPartition(topic, partition, offset + 1)
-        for (topic, partition), offset in offsets.items()
-    ]
-    if tps:
+    for msg in batch:
+
+        event = build_cdc_event(msg)
+        results.append(event)
+
+        key = (msg["topic"], msg["partition"])
+        if msg["offset"] > offsets[key]:
+            offsets[key] = msg["offset"]
+
+    if offsets:
+        tps = [
+            TopicPartition(topic, partition, offset + 1)
+            for (topic, partition), offset in offsets.items()
+        ]
         consumer.commit(offsets=tps)
 
-    return result
+    return results
