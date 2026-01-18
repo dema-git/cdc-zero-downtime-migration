@@ -23,15 +23,25 @@ def after_data(data: dict):
         print("table:", table)
 
 
-def manage_legacy_data_main(data_batch: list[CDCEvent]):
+def manage_legacy_data_main(data_batch: list[CDCEvent]) -> None:
+    for event in data_batch:
+        if event.table_name != "legacy_customers":
+            continue
 
-    messages_to_send = [
-        json.dumps(event.with_split_name()).encode("utf-8")
-        for event in data_batch
-        if event.table_name == "legacy_customers" and event.with_split_name() is not None
-    ]
+        changed = event.split_full_name()
+        if not changed:
+            continue
 
-    for msg in messages_to_send:
-        producer.produce(topic, msg)
+        value = event.to_message()
 
-    producer.flush()
+        value_bytes = json.dumps(value).encode("utf-8")
+        key_bytes = (
+            json.dumps(event.key).encode("utf-8")
+            if event.key is not None
+            else None
+        )
+
+        producer.produce(topic=topic, key=key_bytes, value=value_bytes)
+
+    producer.flush(5)
+
