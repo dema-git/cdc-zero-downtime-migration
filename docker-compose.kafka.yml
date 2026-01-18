@@ -74,6 +74,16 @@ services:
     networks:
       - app_network
 
+  init-sink:
+    build:
+      context: .
+      dockerfile: kafdrop/Dockerfile.sink
+    volumes:
+      - ./scripts:/scripts
+      - ./connector:/connector
+    networks:
+      - app_network
+
 
   init-topics:
     build:
