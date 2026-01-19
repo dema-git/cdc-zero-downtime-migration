@@ -1,5 +1,5 @@
 {
-  "name": "postgres_legacy_customers_sink",
+  "name": "postgres_clean_sink",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
     "tasks.max": "1",
@@ -8,9 +8,14 @@
     "connection.username": "admin2",
     "connection.password": "pass12345@2",
 
-    "topics": "cleared_customers",
+    "topics": "cleared_customers,cleared_orders",
 
-    "table.name.format": "public.customers",
+    "transforms": "route",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "cleared_(.*)",
+    "transforms.route.replacement": "$1",
+
+    "table.name.format": "public.${topic}",
     "schema.evolution": "none",
 
     "insert.mode": "upsert",
