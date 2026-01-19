@@ -157,3 +157,56 @@ class CDCEvent:
 
     def to_message(self) -> JsonDict:
         return {"schema": self.schema, "payload": self.payload}
+
+################
+# legacy_orders: warehouse_* → warehouse_id
+################
+
+    @staticmethod
+    def _patch_legacy_orders_struct_fields(struct_fields: list[JsonDict]) -> None:
+        for f in struct_fields:
+            field_name = f.get("field")
+
+            if field_name in ("warehouse_country", "capacity"):
+                f["__drop__"] = True
+                continue
+
+            if field_name == "warehouse_city":
+                f["field"] = "warehouse_id"
+                f["type"] = "int64"
+
+        struct_fields[:] = [f for f in struct_fields if not f.get("__drop__")]
+
+
+    def _patch_legacy_orders_envelope_schema(self) -> None:
+
+        schema_fields = self.schema.get("fields", [])
+        for top_field in schema_fields:
+
+            if top_field.get("field") in ("before", "after") and top_field.get("type") == "struct":
+                struct_fields = top_field.get("fields", [])
+                if isinstance(struct_fields, list):
+                    self._patch_legacy_orders_struct_fields(struct_fields)
+
+
+    def normalize_warehouse(self, city_to_id: dict[str, int]) -> bool:
+        row = self.data()
+        if not row:
+            return False
+
+        city = row.get("warehouse_city")
+        if not city:
+            return False
+
+        city_id = city_to_id.get(city)
+        if city_id is None:
+            return False
+
+        row["warehouse_id"] = city_id
+
+        row.pop("warehouse_city", None)
+        row.pop("warehouse_country", None)
+        row.pop("capacity", None)
+
+        self._patch_legacy_orders_envelope_schema()
+        return True
