@@ -74,7 +74,7 @@ CREATE TABLE public.orders (
     id bigint NOT NULL,
     customer_id bigint NOT NULL,
     warehouse_id bigint NOT NULL,
-    capacity bigint NOT NULL,
+    capacity integer DEFAULT 0 NOT NULL,
     created_at timestamp without time zone NOT NULL
 );
 
