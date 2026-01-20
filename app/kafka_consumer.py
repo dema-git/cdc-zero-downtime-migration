@@ -16,13 +16,8 @@ GROUP_ID = "time-window-consumer"
 message_queue = []
 queue_lock = threading.Lock()
 
-
-# ---------------------- Helper to build consumer ----------------------
-
 def create_consumer() -> Consumer:
-    """
-    Create new Kafka consumer instance.
-    """
+
     logger.info("Creating new Kafka consumer...")
     return Consumer({
         "bootstrap.servers": BOOTSTRAP,
@@ -33,8 +28,6 @@ def create_consumer() -> Consumer:
         "heartbeat.interval.ms": 3000
     })
 
-
-# ---------------------- CDCEvent builder ----------------------
 
 def build_cdc_event(m: dict) -> CDCEvent:
     k = m.get("key")
@@ -51,14 +44,8 @@ def build_cdc_event(m: dict) -> CDCEvent:
         payload=payload,
     )
 
-
-# ---------------------- Main background loop ----------------------
-
 def consume_loop():
-    """
-    Continuously reads Kafka messages and automatically
-    recovers from broker restarts, disconnects and errors.
-    """
+
     while True:
         consumer = None
 
@@ -74,14 +61,12 @@ def consume_loop():
                     continue
 
                 if msg.error():
-                    # ignore end-of-partition indicator
                     if msg.error().code() == KafkaError._PARTITION_EOF:
                         continue
 
                     logger.error(f"KAFKA ERROR: {msg.error()}")
                     continue
 
-                # decode payload
                 try:
                     payload = json.loads(msg.value().decode("utf-8"))
                 except Exception:
@@ -107,10 +92,8 @@ def consume_loop():
                 except Exception:
                     pass
 
-            time.sleep(5)  # retry delay, helps on broker restart
+            time.sleep(3)
 
-
-# ---------------------- Starting background consumer ----------------------
 
 def start_consumer_loop():
     logger.info("Starting Kafka consumer thread...")
@@ -118,13 +101,8 @@ def start_consumer_loop():
     t.start()
 
 
-# ---------------------- API helper for reading messages ----------------------
-
 def get_messages() -> list[CDCEvent]:
-    """
-    Reads all accumulated messages and commits offsets.
-    Called from FastAPI endpoint.
-    """
+
     with queue_lock:
         if not message_queue:
             return []
@@ -145,7 +123,7 @@ def get_messages() -> list[CDCEvent]:
 
     # commit
     if offsets:
-        consumer = create_consumer()  # for committing when previous consumer has been recreated
+        consumer = create_consumer()
         tps = [
             TopicPartition(topic, partition, offset + 1)
             for (topic, partition), offset in offsets.items()
