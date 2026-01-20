@@ -14,7 +14,6 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_MESSAGE_MAX_BYTES: 200000000
       KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
-      # KAFKA_DATA_DIR можно вообще убрать, толку от него нет
     volumes:
       - kafka_data:/tmp/kraft-combined-logs
     networks:
