@@ -295,3 +295,27 @@ ALTER TABLE ONLY public.warehouse_capacity
 --
 
 
+-------------------------
+-- TRIGGERED FUNCTIONS --
+-------------------------
+
+-- INSERT ORDERS --
+
+CREATE OR REPLACE FUNCTION public.orders_after_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE public.warehouse_capacity
+    SET current_load = current_load + NEW.capacity,
+        updated_at = now()
+    WHERE warehouse_id = NEW.warehouse_id;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER trg_orders_after_insert
+AFTER INSERT ON public.orders
+FOR EACH ROW
+EXECUTE FUNCTION public.orders_after_insert();
+
