@@ -356,3 +356,23 @@ AFTER UPDATE ON public.orders
 FOR EACH ROW
 EXECUTE FUNCTION public.orders_after_update();
 
+
+-- DELETE ORDERS --
+
+CREATE OR REPLACE FUNCTION public.orders_after_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE public.warehouse_capacity
+    SET current_load = current_load - OLD.capacity,
+        updated_at = now()
+    WHERE warehouse_id = OLD.warehouse_id;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER trg_orders_after_delete
+AFTER DELETE ON public.orders
+FOR EACH ROW
+EXECUTE FUNCTION public.orders_after_delete();
