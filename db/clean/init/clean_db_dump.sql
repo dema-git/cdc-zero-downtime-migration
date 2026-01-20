@@ -319,3 +319,40 @@ AFTER INSERT ON public.orders
 FOR EACH ROW
 EXECUTE FUNCTION public.orders_after_insert();
 
+
+-- UPDATE ORDERS --
+
+CREATE OR REPLACE FUNCTION public.orders_after_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.warehouse_id = OLD.warehouse_id THEN
+
+        UPDATE public.warehouse_capacity
+        SET current_load = current_load + (NEW.capacity - OLD.capacity),
+            updated_at = now()
+        WHERE warehouse_id = NEW.warehouse_id;
+
+    ELSE
+
+        UPDATE public.warehouse_capacity
+        SET current_load = current_load - OLD.capacity,
+            updated_at = now()
+        WHERE warehouse_id = OLD.warehouse_id;
+
+        UPDATE public.warehouse_capacity
+        SET current_load = current_load + NEW.capacity,
+            updated_at = now()
+        WHERE warehouse_id = NEW.warehouse_id;
+
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER trg_orders_after_update
+AFTER UPDATE ON public.orders
+FOR EACH ROW
+EXECUTE FUNCTION public.orders_after_update();
+
