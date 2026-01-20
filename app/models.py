@@ -167,7 +167,7 @@ class CDCEvent:
         for f in struct_fields:
             field_name = f.get("field")
 
-            if field_name in ("warehouse_country", "capacity"):
+            if field_name in ("warehouse_country",):
                 f["__drop__"] = True
                 continue
 
@@ -206,7 +206,6 @@ class CDCEvent:
 
         row.pop("warehouse_city", None)
         row.pop("warehouse_country", None)
-        row.pop("capacity", None)
 
         self._patch_legacy_orders_envelope_schema()
         return True
