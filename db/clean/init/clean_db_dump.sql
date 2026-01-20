@@ -265,8 +265,8 @@ CREATE INDEX idx_warehouses_location ON public.warehouses USING gist (location);
 -- Name: orders orders_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: admin2
 --
 
-ALTER TABLE ONLY public.orders
-    ADD CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id);
+--ALTER TABLE ONLY public.orders
+--    ADD CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id);
 
 
 --
