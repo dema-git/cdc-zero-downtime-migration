@@ -1,10 +1,16 @@
+###################################################
+# fake_data_generator.py
+#
+# This module provides helper functions for generating fake data.
+###################################################
+
 import random
 from faker import Faker
 from sqlalchemy.orm import Session
-
 from app.models import Customer, Order
 
 fake = Faker()
+
 
 WAREHOUSES = [
     ("Berlin", "Germany"),
@@ -21,6 +27,9 @@ WAREHOUSES = [
 
 
 def generate_customers(db: Session, count: int) -> list[Customer]:
+    """
+    Creates a specified number of fake customer records and saves them to the database.
+    """
     customers = [
         Customer(
             full_name=fake.name(),
@@ -35,11 +44,12 @@ def generate_customers(db: Session, count: int) -> list[Customer]:
     return customers
 
 
-def generate_orders(
-    db: Session,
-    customers: list[Customer],
-    count: int,
-) -> None:
+def generate_orders(db: Session,customers: list[Customer], count: int, ) -> None:
+    """
+    Generates random warehouse orders linked to existing customers and
+    saves them to the database.
+    Each order is assigned a random warehouse location and capacity.
+    """
     orders = [
         Order(
             customer_id=random.choice(customers).id,

@@ -20,4 +20,4 @@ engine = create_engine(DATABASE_URL, echo=True)
 
 Base.metadata.create_all(engine)
 
-print(f"✅ Tables in database '{POSTGRES_DB}' are created (if they didn't exist)")
+print(f"Tables in database '{POSTGRES_DB}' are created (if they didn't exist)")
