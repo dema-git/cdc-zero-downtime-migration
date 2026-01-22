@@ -1,3 +1,13 @@
+######################################################################
+# manage_legacy_data.py
+#
+# This module processes legacy CDC events and transforms them before
+# sending them to Kafka.
+# It handles customer and order events, normalizing fields and preparing messages
+# for downstream services.
+# Each event type is routed to the appropriate handler based on the table name.
+######################################################################
+
 from app.models import CDCEvent
 from confluent_kafka import Producer
 import json
@@ -7,7 +17,7 @@ conf = {'bootstrap.servers': 'kafka:9092'}
 producer = Producer(conf)
 topic = "cleared_customers"
 
-
+# TOPICS
 TOPIC_CUSTOMERS = "cleared_customers"
 TOPIC_ORDERS = "cleared_orders"
 
@@ -26,6 +36,10 @@ WAREHOUSE_CITY_TO_ID = {
 }
 
 def manage_legacy_orders(event: CDCEvent) -> None:
+    """
+    Processes legacy order events by normalizing warehouse data
+    and publishing them to Kafka.
+    """
     if event.table_name != "legacy_orders":
         return
 
@@ -45,6 +59,10 @@ def manage_legacy_orders(event: CDCEvent) -> None:
 
 
 def manage_legacy_customers(event: CDCEvent) -> None:
+    """
+    Handles legacy customer events by splitting full names
+    and producing the updated data to Kafka.
+    """
     if event.table_name != "legacy_customers":
         return
 
@@ -69,7 +87,12 @@ TABLE_HANDLERS: dict = {
     "legacy_orders": manage_legacy_orders,
 }
 
+
 def manage_legacy_data_main(data_batch: list[CDCEvent]) -> None:
+    """
+    Dispatches CDC events to their corresponding handlers
+    and ensures all Kafka messages are flushed.
+    """
     for event in data_batch:
         handler = TABLE_HANDLERS.get(event.table_name)
         if handler is None:
