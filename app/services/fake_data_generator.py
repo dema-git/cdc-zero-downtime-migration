@@ -12,6 +12,8 @@ from app.models import Customer, Order
 fake = Faker()
 
 
+# List of predefined warehouse locations.
+# We assume these locations are fixed and do not change.
 WAREHOUSES = [
     ("Berlin", "Germany"),
     ("Paris", "France"),
