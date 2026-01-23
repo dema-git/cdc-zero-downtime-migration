@@ -1,3 +1,8 @@
+-- This is the dump of the clean database.
+-- It defines the normalized target schema where data is stored
+-- after being processed and cleaned by the CDC normalization pipeline.
+-- The database is initialized from this dump during the first container build.
+
 --
 -- PostgreSQL database dump
 --

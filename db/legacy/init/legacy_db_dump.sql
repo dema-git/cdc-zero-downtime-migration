@@ -1,3 +1,10 @@
+-- This is the dump of the legacy database.
+-- It contains 'outdated' tables and raw historical data that must be
+-- cleaned, normalized, and transformed into the 'clean' database format.
+-- The legacy database is initialized from this dump during container build.
+-- A Faker-based generator also writes synthetic data here every N seconds.
+
+
 --
 -- PostgreSQL database dump
 --
