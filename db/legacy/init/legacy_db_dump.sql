@@ -4,12 +4,10 @@
 -- The legacy database is initialized from this dump during container build.
 -- A Faker-based generator also writes synthetic data here every N seconds.
 
-
 --
 -- PostgreSQL database dump
 --
 
-\restrict TbqhnzEnD3RxVzojAxYevsjM4AYQMMpJ96S6untf37czz8I4obMws7vfltpnN2H
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.10
@@ -33,10 +31,6 @@ SET row_security = off;
 --
 
 ALTER DATABASE legacy OWNER TO postgres;
-
-\unrestrict TbqhnzEnD3RxVzojAxYevsjM4AYQMMpJ96S6untf37czz8I4obMws7vfltpnN2H
-\connect legacy
-\restrict TbqhnzEnD3RxVzojAxYevsjM4AYQMMpJ96S6untf37czz8I4obMws7vfltpnN2H
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -1553,6 +1547,3 @@ ALTER TABLE ONLY public.legacy_orders
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict TbqhnzEnD3RxVzojAxYevsjM4AYQMMpJ96S6untf37czz8I4obMws7vfltpnN2H
-
