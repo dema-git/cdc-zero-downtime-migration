@@ -7,11 +7,12 @@
 # for downstream services.
 # Each event type is routed to the appropriate handler based on the table name.
 ######################################################################
-
+from app.logging_config import AppLogger
 from app.models import CDCEvent
-from confluent_kafka import Producer
+from confluent_kafka import Producer, KafkaException
 import json
 
+log = AppLogger(component="legacy_data")
 
 conf = {'bootstrap.servers': 'kafka:9092'}
 producer = Producer(conf)
@@ -54,9 +55,16 @@ def manage_legacy_orders(event: CDCEvent) -> None:
         if event.key is not None
         else None
     )
-
-    producer.produce(topic=TOPIC_ORDERS, key=key_bytes, value=value_bytes)
-
+    try:
+        producer.produce(topic=TOPIC_ORDERS, key=key_bytes, value=value_bytes)
+    except KafkaException as e:
+        log.exception(
+            "Failed to produce legacy order event",
+            error=str(e),
+            topic=TOPIC_ORDERS,
+            table_name=event.table_name,
+            key=event.key,
+        )
 
 def manage_legacy_customers(event: CDCEvent) -> None:
     """
@@ -78,9 +86,16 @@ def manage_legacy_customers(event: CDCEvent) -> None:
         if event.key is not None
         else None
     )
-
-    producer.produce(topic=TOPIC_CUSTOMERS, key=key_bytes, value=value_bytes)
-
+    try:
+        producer.produce(topic=TOPIC_CUSTOMERS, key=key_bytes, value=value_bytes)
+    except KafkaException as e:
+        log.exception(
+            "Failed to produce legacy customer event",
+            error=str(e),
+            topic=TOPIC_CUSTOMERS,
+            table_name=event.table_name,
+            key=event.key,
+        )
 
 TABLE_HANDLERS: dict = {
     "legacy_customers": manage_legacy_customers,
@@ -93,10 +108,32 @@ def manage_legacy_data_main(data_batch: list[CDCEvent]) -> None:
     Dispatches CDC events to their corresponding handlers
     and ensures all Kafka messages are flushed.
     """
+    log.info("Processing CDC batch", batch_size=len(data_batch))
+
+    processed_count = 0
+    skipped_count = 0
     for event in data_batch:
         handler = TABLE_HANDLERS.get(event.table_name)
         if handler is None:
             continue
         handler(event)
 
-    producer.flush(5)
+        processed_count += 1
+    try:
+        producer.flush(5)
+        log.info(
+            "Kafka producer flush completed",
+            flush_timeout_seconds=5,
+            processed_count=processed_count,
+            skipped_count=skipped_count,
+            batch_size=len(data_batch),
+        )
+    except KafkaException as e:
+        log.exception(
+            "Kafka producer flush failed",
+            error=str(e),
+            processed_count=processed_count,
+            skipped_count=skipped_count,
+            batch_size=len(data_batch),
+        )
+
