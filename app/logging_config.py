@@ -34,9 +34,9 @@ def setup_root_logger() -> logging.Logger:
     # automatically rotates the file when it reaches 10 MB,
     # keeping up to 5 backups
     file_handler = RotatingFileHandler(
-        "app.log",
+        "/logs/app.log",
         maxBytes=10_000_000,
-        backupCount=5
+        backupCount=10,
     )
 
     file_handler.setLevel(logging.INFO)

@@ -11,7 +11,7 @@ services:
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./shared_logs:/shared/logs
+      - ./logs:/logs
     networks:
       - app_network
 
