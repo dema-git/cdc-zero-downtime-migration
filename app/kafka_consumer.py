@@ -1,3 +1,13 @@
+##########################################################
+# kafka_consumer.py
+#
+# This module runs a background Kafka consumer that listens to CDC topics
+# and stores incoming messages in a thread-safe queue. It converts raw Kafka
+# messages into CDCEvent objects and returns them when requested.
+# After processing, it manually commits offsets. The consumer restarts
+# automatically if any error occurs.
+##########################################################
+
 import threading
 import json
 import time
@@ -17,6 +27,9 @@ message_queue = []
 queue_lock = threading.Lock()
 
 def create_consumer() -> Consumer:
+    """
+    Create and configure a Kafka consumer instance
+    """
     log.info("Creating new Kafka consumer...")
     return Consumer({
         "bootstrap.servers": BOOTSTRAP,
@@ -29,6 +42,9 @@ def create_consumer() -> Consumer:
 
 
 def build_cdc_event(m: dict) -> CDCEvent:
+    """
+    Build a structured CDCEvent object from raw Kafka payload
+    """
     k = m.get("key")
     if k is not None:
         k = json.loads(k.decode("utf-8"))
@@ -46,7 +62,7 @@ def build_cdc_event(m: dict) -> CDCEvent:
 def consume_loop():
     """
     Kafka consumer loop: polls messages, handles errors, queues valid events,
-    and restarts automatically on failure.
+    and restarts automatically on failure
     """
     while True:
         consumer = None
@@ -121,13 +137,19 @@ def consume_loop():
 
 
 def start_consumer_loop():
+    """
+    Start the consumer loop in a background
+    """
     log.info("Starting Kafka consumer thread...")
     t = threading.Thread(target=consume_loop, daemon=True)
     t.start()
 
 
 def get_messages() -> list[CDCEvent]:
-
+    """
+    Retrieve queued CDC events, convert to CDCEvent objects,
+    commit offsets for processed messages, and return event list.
+    """
     with queue_lock:
         if not message_queue:
             return []
