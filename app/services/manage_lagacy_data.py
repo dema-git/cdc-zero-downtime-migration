@@ -22,7 +22,8 @@ topic = "cleared_customers"
 TOPIC_CUSTOMERS = "cleared_customers"
 TOPIC_ORDERS = "cleared_orders"
 
-
+# Mapping of warehouse city names to warehouse IDs.
+# These IDs correspond to the warehouse entries in the clean database.
 WAREHOUSE_CITY_TO_ID = {
     "Berlin": 1,
     "Paris": 2,
