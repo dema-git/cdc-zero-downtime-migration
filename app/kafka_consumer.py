@@ -2,11 +2,11 @@ import threading
 import json
 import time
 from collections import defaultdict
-from confluent_kafka import Consumer, KafkaError, TopicPartition
-import logging
+from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
+from app.logging_config import AppLogger
 from .models import CDCEvent
 
-logger = logging.getLogger("app.consumer")
+log = AppLogger(component="kafka_consumer")
 
 TOPICS = ["cdc.public.legacy_orders", "cdc.public.legacy_customers"]
 BOOTSTRAP = "kafka:9092"
@@ -17,8 +17,7 @@ message_queue = []
 queue_lock = threading.Lock()
 
 def create_consumer() -> Consumer:
-
-    logger.info("Creating new Kafka consumer...")
+    log.info("Creating new Kafka consumer...")
     return Consumer({
         "bootstrap.servers": BOOTSTRAP,
         "group.id": GROUP_ID,
@@ -45,14 +44,17 @@ def build_cdc_event(m: dict) -> CDCEvent:
     )
 
 def consume_loop():
-
+    """
+    Kafka consumer loop: polls messages, handles errors, queues valid events,
+    and restarts automatically on failure.
+    """
     while True:
         consumer = None
 
         try:
             consumer = create_consumer()
             consumer.subscribe(TOPICS)
-            logger.info(f"Subscribed to topics: {TOPICS}")
+            log.info("Subscribed to topics", topics=TOPICS)
 
             while True:
                 msg = consumer.poll(1.0)
@@ -64,13 +66,24 @@ def consume_loop():
                     if msg.error().code() == KafkaError._PARTITION_EOF:
                         continue
 
-                    logger.error(f"KAFKA ERROR: {msg.error()}")
+                    log.error(
+                        "Kafka error received",
+                        error=str(msg.error()),
+                        topic=msg.topic(),
+                        partition=msg.partition(),
+                    )
                     continue
 
                 try:
                     payload = json.loads(msg.value().decode("utf-8"))
-                except Exception:
-                    logger.exception("Failed to decode Kafka message")
+                except UnicodeDecodeError as e:
+                    log.exception(
+                        "Failed to parse Kafka message as JSON",
+                        error=str(e),
+                        topic=msg.topic(),
+                        partition=msg.partition(),
+                        offset=msg.offset(),
+                    )
                     continue
 
                 with queue_lock:
@@ -82,21 +95,33 @@ def consume_loop():
                         "offset": msg.offset()
                     })
 
-        except Exception:
-            logger.exception("Consumer crashed — restarting in 5s")
+        except KafkaException as e:
+            log.exception(
+                "Kafka consumer crashed with KafkaException",
+                error=str(e),
+            )
+
+        except Exception as e:
+            log.exception(
+                "Consumer crashed with unexpected error",
+                error=str(e),
+            )
 
         finally:
             if consumer:
                 try:
                     consumer.close()
-                except Exception:
-                    pass
+                except KafkaException as e:
+                    log.error(
+                        "Error while closing Kafka consumer",
+                        error=str(e),
+                    )
 
             time.sleep(3)
 
 
 def start_consumer_loop():
-    logger.info("Starting Kafka consumer thread...")
+    log.info("Starting Kafka consumer thread...")
     t = threading.Thread(target=consume_loop, daemon=True)
     t.start()
 
@@ -130,10 +155,23 @@ def get_messages() -> list[CDCEvent]:
         ]
         try:
             consumer.commit(offsets=tps)
-            logger.info(f"Committed offsets: {tps}")
-        except Exception:
-            logger.exception("Error committing offsets")
+            log.info(
+                "Committed offsets",
+                offsets=[str(tp) for tp in tps],
+            )
+        except KafkaException as e:
+            log.exception(
+                "Error committing offsets",
+                error=str(e),
+                offsets=[str(tp) for tp in tps],
+            )
         finally:
-            consumer.close()
+            try:
+                consumer.close()
+            except KafkaException as e:
+                log.error(
+                    "Error closing consumer after commit",
+                    error=str(e),
+                )
 
     return results
