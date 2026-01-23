@@ -1,3 +1,14 @@
+#############################################################
+# models.py
+#
+# This module contains legacy SQLAlchemy models and the CDCEvent dataclass.
+# It is used to handle Debezium-style CDC messages, extract row data,
+# check the operation type, and adjust fields such as names or warehouse info.
+# The CDCEvent class also updates the schema structure when fields change.
+#
+# !! The legacy models are also used by the Faker-based generator to
+# automatically create and save synthetic data every N seconds. !!
+#############################################################
 
 from sqlalchemy import ForeignKey, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,6 +22,9 @@ from typing import Any, Dict, Optional, Tuple, List
 ##############################
 
 class Customer(Base):
+    """
+    Legacy customer model mapped to the 'legacy_customers' table
+    """
     __tablename__ = "legacy_customers"
     __table_args__ = {"extend_existing": True}
 
@@ -30,6 +44,9 @@ class Customer(Base):
 
 
 class Order(Base):
+    """
+    Legacy order model mapped to the 'legacy_orders' table
+    """
     __tablename__ = "legacy_orders"
     __table_args__ = {"extend_existing": True}
 
@@ -52,7 +69,6 @@ class Order(Base):
     customer: Mapped["Customer"] = relationship(back_populates="orders")
 
 
-
 ##################
 # DATACLASSES
 ##################
@@ -68,6 +84,11 @@ class Source:
 
 @dataclass
 class CDCEvent:
+    """
+    Wrapper for a CDC message with schema and payload.
+    Provides helpers to inspect operation type, access row data, split
+    customer names, normalize fields, and update the schema envelope.
+    """
     schema: JsonDict
     payload: JsonDict
     key: Optional[JsonDict] = None
@@ -75,16 +96,26 @@ class CDCEvent:
 
     @property
     def op(self) -> str:
+        """
+        Return raw operation code from payload
+        """
         return self.payload.get("op", "")
 
 
     @property
     def op_type(self) -> str:
+        """
+        Return the relevant row data based on op type ('c', 'r', 'u', 'd')
+
+        """
         return self.op
 
 
     @property
     def source(self) -> Source:
+        """
+        Build and return a Source object from the payloads source field
+        """
         s = self.payload.get("source") or {}
         return Source(
             db=s.get("db", ""),
@@ -108,6 +139,9 @@ class CDCEvent:
 
     @staticmethod
     def _split_full_name(full_name: str) -> Tuple[str, str]:
+        """
+        Split a full name into first and last name
+        """
         parts = full_name.strip().split()
         if not parts:
             return "", ""
@@ -118,7 +152,11 @@ class CDCEvent:
 
     @staticmethod
     def _patch_struct_fields(struct_fields: List[JsonDict]) -> None:
+        """
+        Modify schema struct fields to drop full_name and add first / last name.
+        Removes 'full_name' and ensures 'first_name' and 'last_name' exist.
 
+        """
         struct_fields[:] = [f for f in struct_fields if f.get("field") != "full_name"]
 
         existing = {f.get("field") for f in struct_fields}
@@ -129,7 +167,10 @@ class CDCEvent:
 
 
     def _patch_envelope_schema(self) -> None:
-
+        """
+        Patch the envelope schema 'before'/'after' blocks for name splitting.
+        Adjusts inner struct fields to reflect first_name/last_name changes
+        """
         schema_fields = self.schema.get("fields", [])
         for top_field in schema_fields:
             if top_field.get("field") in ("before", "after") and top_field.get("type") == "struct":
@@ -139,7 +180,10 @@ class CDCEvent:
 
 
     def split_full_name(self) -> bool:
-
+        """
+        Split 'full_name' into 'first_name' and 'last_name' in row and schema.
+        Returns True if a change was applied, False otherwise.
+        """
         row = self.data()
         if not row or "full_name" not in row:
             return False
@@ -156,6 +200,9 @@ class CDCEvent:
 
 
     def to_message(self) -> JsonDict:
+        """
+        Returns a dict representation compatible with the original CDC format
+        """
         return {"schema": self.schema, "payload": self.payload}
 
 ################
@@ -164,6 +211,10 @@ class CDCEvent:
 
     @staticmethod
     def _patch_legacy_orders_struct_fields(struct_fields: list[JsonDict]) -> None:
+        """
+        Adjust legacy_orders struct fields for warehouse normalization.
+        Drops warehouse_country and renames warehouse_city → warehouse_id (int).
+        """
         for f in struct_fields:
             field_name = f.get("field")
 
@@ -179,7 +230,10 @@ class CDCEvent:
 
 
     def _patch_legacy_orders_envelope_schema(self) -> None:
-
+        """
+        Patch envelope schema for legacy_orders warehouse fields.
+        Updates 'before'/'after' structs to match warehouse_id layout.
+        """
         schema_fields = self.schema.get("fields", [])
         for top_field in schema_fields:
 
@@ -190,6 +244,11 @@ class CDCEvent:
 
 
     def normalize_warehouse(self, city_to_id: dict[str, int]) -> bool:
+        """
+        Normalize warehouse_city/warehouse_country to warehouse_id.
+        Uses a mapping city_to_id to set warehouse_id and removes old fields.
+        Returns True if normalization was applied, False otherwise.
+        """
         row = self.data()
         if not row:
             return False
