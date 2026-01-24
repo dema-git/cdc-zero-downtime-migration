@@ -111,11 +111,9 @@ def health_check_main() -> Dict[str, Any]:
 
     legacy_ok, legacy_details = check_db_health(LegacyDBSession, "legacy_db")
     status["legacy_db"] = "ok" if legacy_ok else "fail"
-    status["legacy_db_details"] = legacy_details
 
     clean_ok, clean_details = check_db_health(CleanDBSession, "clean_db")
     status["clean_db"] = "ok" if clean_ok else "fail"
-    status["clean_db_details"] = clean_details
 
     core = [v for k, v in status.items() if not k.endswith("_details")]
     overall = "ok" if all(v == "ok" for v in core) else "degraded"
