@@ -99,3 +99,25 @@ def check_db_health(session_factory: Callable[[], Session], label: str) -> Tuple
         return False, details
 
 
+def health_check_main() -> Dict[str, Any]:
+    """
+    Aggregate Kafka + DB health checks into a single status payload
+    """
+    status: Dict[str, Any] = {}
+
+    kafka_ok, kafka_details = check_kafka_health(required_topics=TOPICS)
+    status["kafka"] = "ok" if kafka_ok else "fail"
+    status["kafka_details"] = kafka_details
+
+    legacy_ok, legacy_details = check_db_health(LegacyDBSession, "legacy_db")
+    status["legacy_db"] = "ok" if legacy_ok else "fail"
+    status["legacy_db_details"] = legacy_details
+
+    clean_ok, clean_details = check_db_health(CleanDBSession, "clean_db")
+    status["clean_db"] = "ok" if clean_ok else "fail"
+    status["clean_db_details"] = clean_details
+
+    core = [v for k, v in status.items() if not k.endswith("_details")]
+    overall = "ok" if all(v == "ok" for v in core) else "degraded"
+
+    return {"status": overall, "details": status}
