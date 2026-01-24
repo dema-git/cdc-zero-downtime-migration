@@ -3,9 +3,11 @@ import random
 from fastapi import FastAPI
 from .kafka_consumer import start_consumer_loop, get_messages
 from .services.manage_lagacy_data import manage_legacy_data_main
-from app.db import SessionLocal
-from app.logging_config import AppLogger
-from app.services.fake_data_generator import generate_customers, generate_orders
+from .db import LegacyDBSession, CleanDBSession
+from .logging_config import AppLogger
+from .services.fake_data_generator import generate_customers, generate_orders
+from typing import Any, Dict
+from .services.health_check import health_check_main
 
 app = FastAPI()
 logger = AppLogger(component="auto_generator")
@@ -18,7 +20,7 @@ async def auto_generator():
     while True:
         try:
             await asyncio.sleep(random.uniform(1, 4))
-            db = SessionLocal()
+            db = LegacyDBSession()
             try:
                 customers_count = random.randint(1, 2)
                 customers = generate_customers(db, count=customers_count)
@@ -77,3 +79,14 @@ def cdc_events():
     batch = get_messages()
     manage_legacy_data_main(batch)
     return {"count": len(batch), "events": batch}
+
+
+@app.get("/health")
+def health() -> Dict[str, Any]:
+    """
+    Health-check endpoint that verifies:
+    - Kafka (broker + required CDC topics)
+    - legacy database connectivity
+    - clean database connectivity
+    """
+    return health_check_main()
