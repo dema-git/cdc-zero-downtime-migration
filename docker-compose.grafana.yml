@@ -1,0 +1,45 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logs:/logs
+
+  loki:
+    image: grafana/loki:latest-amd64
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest-amd64
+    container_name: promtail
+    depends_on:
+      - loki
+    volumes:
+      - ./logs:/logs
+      - ./prometheus/promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logs:/logs
+
+volumes:
+  grafana_data:
