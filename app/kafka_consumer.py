@@ -30,7 +30,6 @@ def create_consumer() -> Consumer:
     """
     Create and configure a Kafka consumer instance
     """
-    log.info("Creating new Kafka consumer...")
     return Consumer({
         "bootstrap.servers": BOOTSTRAP,
         "group.id": GROUP_ID,
@@ -68,6 +67,7 @@ def consume_loop():
         consumer = None
 
         try:
+            log.info("Creating new Kafka consumer...")
             consumer = create_consumer()
             consumer.subscribe(TOPICS)
             log.info("Subscribed to topics", topics=TOPICS)
