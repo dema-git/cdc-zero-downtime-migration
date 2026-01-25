@@ -36,10 +36,14 @@ services:
       - loki
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DATASOURCES_DEFAULT_DATASOURCE_NAME: Loki
     volumes:
       - grafana_data:/var/lib/grafana
       - /var/run/docker.sock:/var/run/docker.sock
       - ./logs:/logs
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
 
 volumes:
   grafana_data:
