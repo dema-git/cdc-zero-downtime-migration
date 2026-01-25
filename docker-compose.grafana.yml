@@ -8,6 +8,8 @@ services:
       - ./prometheus:/etc/prometheus
       - /var/run/docker.sock:/var/run/docker.sock
       - ./logs:/logs
+    networks:
+      - app_network
 
   loki:
     image: grafana/loki:latest-amd64
@@ -15,6 +17,9 @@ services:
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - app_network
+
 
   promtail:
     image: grafana/promtail:latest-amd64
@@ -25,6 +30,8 @@ services:
       - ./logs:/logs
       - ./prometheus/promtail-config.yml:/etc/promtail/config.yml:ro
     command: -config.file=/etc/promtail/config.yml
+    networks:
+      - app_network
 
   grafana:
     image: grafana/grafana:latest
@@ -37,6 +44,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_DATASOURCES_DEFAULT_DATASOURCE_NAME: Loki
+      GF_INSTALL_PLUGINS: marcusolsson-json-datasource
     volumes:
       - grafana_data:/var/lib/grafana
       - /var/run/docker.sock:/var/run/docker.sock
@@ -44,6 +52,13 @@ services:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - app_network
 
 volumes:
   grafana_data:
+
+networks:
+  app_network:
+    external: true
+    name: cdc_network

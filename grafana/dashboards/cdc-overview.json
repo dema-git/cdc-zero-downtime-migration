@@ -23,6 +23,106 @@
   "panels": [
     {
       "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "afb905cry9udca"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "color-background"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "fail": {
+                  "color": "dark-red",
+                  "index": 1,
+                  "text": "FAIL"
+                },
+                "ok": {
+                  "color": "dark-green",
+                  "index": 0,
+                  "text": "OK"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "cacheDurationSeconds": 0,
+          "datasource": {
+            "type": "marcusolsson-json-datasource",
+            "uid": "afb905cry9udca"
+          },
+          "fields": [
+            {
+              "jsonPath": "$.details.kafka",
+              "name": "kafka"
+            },
+            {
+              "jsonPath": "$.details.kafka_details.broker",
+              "language": "jsonpath",
+              "name": "broker"
+            },
+            {
+              "jsonPath": "$.details.legacy_db",
+              "language": "jsonpath",
+              "name": "legacy_db"
+            },
+            {
+              "jsonPath": "$.details.clean_db",
+              "language": "jsonpath",
+              "name": "clean_db"
+            }
+          ],
+          "method": "GET",
+          "queryParams": "",
+          "refId": "A",
+          "urlPath": ""
+        }
+      ],
+      "title": "Health",
+      "transparent": true,
+      "type": "table"
+    },
+    {
+      "datasource": {
         "type": "loki",
         "uid": "P8E80F9AEF21F6940"
       },
@@ -89,7 +189,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 5
       },
       "id": 2,
       "options": {
@@ -190,7 +290,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 5
       },
       "id": 1,
       "options": {
@@ -234,9 +334,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
-        "y": 8
+        "y": 13
       },
       "id": 6,
       "options": {
@@ -257,7 +357,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{job=\"file-logs\"} | json | component=\"legacy_data\"",
+          "expr": "{job=\"file-logs\"} | json | component=\"legacy_data\"\n| line_format \"{{ .timestamp }} | {{ .level }} | {{ .component }} | batch: {{ .batch_size }} processed: {{ .processed_count }}\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -275,10 +375,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 24,
+        "h": 8,
+        "w": 12,
         "x": 0,
-        "y": 16
+        "y": 21
       },
       "id": 5,
       "options": {
@@ -317,10 +417,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 24,
+        "h": 9,
+        "w": 12,
         "x": 0,
-        "y": 23
+        "y": 29
       },
       "id": 4,
       "options": {
@@ -341,7 +441,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{job=\"file-logs\"} | json | component=\"auto_generator\"",
+          "expr": "{job=\"file-logs\"} | json | component=\"auto_generator\"\n| line_format \"{{ .timestamp }} › {{ .level }} › {{ .msg }} | customers: {{ .customers_count }} orders: {{ .orders_count }}\"",
           "queryType": "range",
           "refId": "A"
         }
