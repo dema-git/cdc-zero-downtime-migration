@@ -5,3 +5,4 @@ psycopg2-binary
 faker
 confluent_kafka
 numpy
+requests>=2.31.0

@@ -1,121 +1,132 @@
-####################################################################
+###################################################################
+#
 # health_check.py
 #
 # Centralized health check utilities for the service.
-# all checks into a structured payload suitable for HTTP endpoint (/health)
-######################################################################
+# Aggregates all checks into a structured payload suitable
+# for HTTP endpoint (/health)
+# #################################################################
 
-from typing import Any, Dict, List, Tuple
-from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
-from app.logging_config import AppLogger
-from app.kafka_consumer import create_consumer, TOPICS
-from app.db import LegacyDBSession, CleanDBSession
-from typing import Any, Dict, Tuple, Callable
+from typing import Dict, Any, List, Tuple
+import json
+import urllib.request
+import urllib.error
+
+from confluent_kafka import KafkaException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
+from app.logging_config import AppLogger
+from app.kafka_consumer import create_consumer, TOPICS
+from app.db import LegacyDBSession, CleanDBSession
+
 logger = AppLogger(component="health_check")
 
-def check_kafka_health(required_topics: List[str] | None = None) -> Tuple[bool, Dict[str, Any]]:
+KAFKA_CONNECT_URL = "http://connect:8083"
+KAFKA_SINK_CONNECTOR = "postgres_clean_sink"
+KAFKA_SOURCE_CONNECTOR = "my_postgres_connector"
+
+
+def http_get_json(url: str, timeout: int = 5) -> Dict[str, Any]:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise Exception(f"HTTP {e.code}: {e.reason}")
+    except urllib.error.URLError as e:
+        raise Exception(f"URL error: {e.reason}")
+
+
+def check_kafka(required_topics: List[str]) -> str:
     """
-    Check Kafka broker availability and optionally verify required topics
+    Verify Kafka broker availability and ensure required topics exist.
+    Returns "ok" or "fail"
     """
     consumer = None
-    details: Dict[str, Any] = {}
-
     try:
         consumer = create_consumer()
-
-        # Fetch cluster & topic metadata
         metadata = consumer.list_topics(timeout=5.0)
-        details["broker"] = "ok"
-        details["cluster_id"] = getattr(metadata, "cluster_id", None)
 
-        if required_topics:
-            existing_topics = set(metadata.topics.keys())
-            missing = [t for t in required_topics if t not in existing_topics]
+        existing = set(metadata.topics.keys())
+        missing = [t for t in required_topics if t not in existing]
 
-            details["existing_topics"] = list(existing_topics)
-            details["required_topics"] = required_topics
+        if missing:
+            return "fail"
 
-            if missing:
-                details["missing_topics"] = missing
-                return False, details
-
-        return True, details
-
-    except KafkaException as e:
-        logger.exception(
-            "Kafka health check failed with KafkaException",
-            error=str(e),
-        )
-        details["broker"] = "fail"
-        details["error"] = str(e)
-        return False, details
+        return "ok"
 
     except Exception as e:
-        logger.exception(
-            "Kafka health check failed with unexpected error",
-            error=str(e),
-        )
-        details["broker"] = "fail"
-        details["error"] = str(e)
-        return False, details
+        logger.exception("Kafka health failed", error=str(e))
+        return "fail"
 
     finally:
-        if consumer is not None:
+        if consumer:
             try:
                 consumer.close()
-            except KafkaException as e:
-                logger.error(
-                    "Error while closing Kafka consumer in health check",
-                    error=str(e),
-                )
+            except KafkaException:
+                pass
 
 
-def check_db_health(session_factory: Callable[[], Session], label: str) -> Tuple[bool, Dict[str, Any]]:
+def check_db(session_factory) -> str:
     """
-    Run a simple SELECT 1 to verify DB connectivity.
+    Execute a basic SELECT 1 to confirm database connectivity.
+    Returns "ok" or "fail"
     """
-    details: Dict[str, Any] = {
-        "db_label": label,
-    }
-
     try:
         db = session_factory()
         try:
             db.execute(text("SELECT 1"))
-            details["status"] = "ok"
-            return True, details
+            return "ok"
         finally:
             db.close()
-    except Exception as exc:
-        logger.exception(
-            f"{label} health check failed",
-            error=str(exc),
-        )
-        details["status"] = "fail"
-        details["error"] = str(exc)
-        return False, details
+    except Exception as e:
+        logger.exception("DB health failed", error=str(e))
+        return "fail"
+
+
+def check_connector(name: str) -> str:
+    """
+    Check Kafka Connect connector status through its REST endpoint
+    """
+    try:
+        url = f"{KAFKA_CONNECT_URL}/connectors/{name}/status"
+        data = http_get_json(url)
+
+        connector_state = data.get("connector", {}).get("state")
+        task_states = {t.get("state") for t in data.get("tasks", [])}
+
+        if connector_state == "RUNNING" and task_states == {"RUNNING"}:
+            return "ok"
+        return "fail"
+
+    except Exception as e:
+        logger.exception("Connector health failed", connector=name, error=str(e))
+        return "fail"
 
 
 def health_check_main() -> Dict[str, Any]:
     """
-    Aggregate Kafka + DB health checks into a single status payload
+    Aggregate all component health checks into a single status payload
     """
-    status: Dict[str, Any] = {}
+    kafka = check_kafka(TOPICS)
+    legacy_db = check_db(LegacyDBSession)
+    clean_db = check_db(CleanDBSession)
+    kafka_sink = check_connector(KAFKA_SINK_CONNECTOR)
+    kafka_source = check_connector(KAFKA_SOURCE_CONNECTOR)
 
-    kafka_ok, kafka_details = check_kafka_health(required_topics=TOPICS)
-    status["kafka"] = "ok" if kafka_ok else "fail"
-    status["kafka_details"] = kafka_details
+    all_ok = all([
+        kafka == "ok",
+        legacy_db == "ok",
+        clean_db == "ok",
+        kafka_sink == "ok",
+        kafka_source == "ok",
+    ])
 
-    legacy_ok, legacy_details = check_db_health(LegacyDBSession, "legacy_db")
-    status["legacy_db"] = "ok" if legacy_ok else "fail"
-
-    clean_ok, clean_details = check_db_health(CleanDBSession, "clean_db")
-    status["clean_db"] = "ok" if clean_ok else "fail"
-
-    core = [v for k, v in status.items() if not k.endswith("_details")]
-    overall = "ok" if all(v == "ok" for v in core) else "degraded"
-
-    return {"status": overall, "details": status}
+    return {
+        "status": "ok" if all_ok else "degraded",
+        "kafka": kafka,
+        "legacy_db": legacy_db,
+        "clean_db": clean_db,
+        "kafka_sink": kafka_sink,
+        "kafka_source": kafka_source,
+    }
