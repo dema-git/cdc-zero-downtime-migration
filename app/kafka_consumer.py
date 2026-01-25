@@ -11,8 +11,7 @@
 import threading
 import json
 import time
-from collections import defaultdict
-from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
+from confluent_kafka import Consumer, KafkaError, KafkaException
 from app.logging_config import AppLogger
 from .models import CDCEvent
 
@@ -26,6 +25,7 @@ GROUP_ID = "time-window-consumer"
 message_queue = []
 queue_lock = threading.Lock()
 
+
 def create_consumer() -> Consumer:
     """
     Create and configure a Kafka consumer instance
@@ -36,7 +36,7 @@ def create_consumer() -> Consumer:
         "enable.auto.commit": False,
         "auto.offset.reset": "earliest",
         "session.timeout.ms": 10000,
-        "heartbeat.interval.ms": 3000
+        "heartbeat.interval.ms": 3000,
     })
 
 
@@ -58,11 +58,16 @@ def build_cdc_event(m: dict) -> CDCEvent:
         payload=payload,
     )
 
+
 def consume_loop():
     """
     Kafka consumer loop: polls messages, handles errors, queues valid events,
-    and restarts automatically on failure
+    and restarts automatically on failure.
+    Also periodically commits offsets in the same thread.
     """
+    COMMIT_EVERY_MESSAGES = 50
+    COMMIT_EVERY_SECONDS = 5.0
+
     while True:
         consumer = None
 
@@ -72,14 +77,21 @@ def consume_loop():
             consumer.subscribe(TOPICS)
             log.info("Subscribed to topics", topics=TOPICS)
 
+            messages_since_commit = 0
+            last_commit_time = time.time()
+
             while True:
                 msg = consumer.poll(1.0)
 
                 if msg is None:
+                    _maybe_commit(consumer, messages_since_commit, last_commit_time,
+                                  COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
                     continue
 
                 if msg.error():
                     if msg.error().code() == KafkaError._PARTITION_EOF:
+                        _maybe_commit(consumer, messages_since_commit, last_commit_time,
+                                      COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
                         continue
 
                     log.error(
@@ -88,6 +100,8 @@ def consume_loop():
                         topic=msg.topic(),
                         partition=msg.partition(),
                     )
+                    _maybe_commit(consumer, messages_since_commit, last_commit_time,
+                                  COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
                     continue
 
                 try:
@@ -100,16 +114,28 @@ def consume_loop():
                         partition=msg.partition(),
                         offset=msg.offset(),
                     )
+                    _maybe_commit(consumer, messages_since_commit, last_commit_time,
+                                  COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
                     continue
 
+                # Add message to kafka queue
                 with queue_lock:
                     message_queue.append({
                         "key": msg.key(),
                         "data": payload,
                         "topic": msg.topic(),
                         "partition": msg.partition(),
-                        "offset": msg.offset()
+                        "offset": msg.offset(),
                     })
+
+                messages_since_commit += 1
+                messages_since_commit, last_commit_time = _maybe_commit(
+                    consumer,
+                    messages_since_commit,
+                    last_commit_time,
+                    COMMIT_EVERY_MESSAGES,
+                    COMMIT_EVERY_SECONDS,
+                )
 
         except KafkaException as e:
             log.exception(
@@ -136,6 +162,30 @@ def consume_loop():
             time.sleep(3)
 
 
+def _maybe_commit(consumer, messages_since_commit, last_commit_time,
+                  commit_every_messages, commit_every_seconds):
+    now = time.time()
+    should_commit_by_count = messages_since_commit >= commit_every_messages
+    should_commit_by_time = (now - last_commit_time) >= commit_every_seconds
+
+    if not (should_commit_by_count or should_commit_by_time):
+        return messages_since_commit, last_commit_time
+
+    try:
+        consumer.commit()
+        log.info(
+            "Committed offsets (auto in consume_loop)",
+            messages_since_commit=messages_since_commit,
+        )
+    except KafkaException as e:
+        log.exception(
+            "Error committing offsets in consume_loop",
+            error=str(e),
+        )
+
+    return 0, now
+
+
 def start_consumer_loop():
     """
     Start the consumer loop in a background
@@ -147,8 +197,8 @@ def start_consumer_loop():
 
 def get_messages() -> list[CDCEvent]:
     """
-    Retrieve queued CDC events, convert to CDCEvent objects,
-    commit offsets for processed messages, and return event list.
+    Retrieve queued CDC events and convert to CDCEvent objects.
+    Offsets are committed by the consumer thread.
     """
     with queue_lock:
         if not message_queue:
@@ -158,42 +208,9 @@ def get_messages() -> list[CDCEvent]:
         message_queue.clear()
 
     results: list[CDCEvent] = []
-    offsets = defaultdict(lambda: -1)
 
     for msg in batch:
         event = build_cdc_event(msg)
         results.append(event)
-
-        key = (msg["topic"], msg["partition"])
-        if msg["offset"] > offsets[key]:
-            offsets[key] = msg["offset"]
-
-    # commit
-    if offsets:
-        consumer = create_consumer()
-        tps = [
-            TopicPartition(topic, partition, offset + 1)
-            for (topic, partition), offset in offsets.items()
-        ]
-        try:
-            consumer.commit(offsets=tps)
-            log.info(
-                "Committed offsets",
-                offsets=[str(tp) for tp in tps],
-            )
-        except KafkaException as e:
-            log.exception(
-                "Error committing offsets",
-                error=str(e),
-                offsets=[str(tp) for tp in tps],
-            )
-        finally:
-            try:
-                consumer.close()
-            except KafkaException as e:
-                log.error(
-                    "Error closing consumer after commit",
-                    error=str(e),
-                )
 
     return results
