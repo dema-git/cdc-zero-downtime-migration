@@ -7,7 +7,7 @@ services:
         - .env
     container_name: faker_app
     ports:
-      - "8000:8000"
+      - "${FAST_API_PORT}:8000"
     restart: always
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -18,4 +18,4 @@ services:
 networks:
   app_network:
     external: true
-    name: cdc_network
+    name: ${CDC_NETWORK_NAME}

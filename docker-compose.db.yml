@@ -4,7 +4,7 @@ services:
     container_name: postgres_db_legacy
     restart: always
     ports:
-      - "${POSTGRES_LEGACY_PORTS}"
+      - "${POSTGRES_LEGACY_PORT}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_LEGACY_USER}
       POSTGRES_PASSWORD: ${POSTGRES_LEGACY_PASSWORD}
@@ -62,4 +62,4 @@ volumes:
 
 networks:
   app_network:
-    name: cdc_network
+    name: ${CDC_NETWORK_NAME}
