@@ -30,9 +30,10 @@ async def auto_generator():
                 db.commit()
 
                 logger.info(
-                    "Generated legacy customers and orders",
+                     "Generated legacy customers and orders in legacy DB",
                     customers_count=customers_count,
                     orders_count=orders_count,
+                    pipeline_stage="generate_legacy_data",
                 )
 
             finally:
@@ -51,12 +52,20 @@ async def cdc_worker(poll_interval: float = 5.0):
     """
     Periodically fetches and processes CDC events from Kafka
     """
+    worker_log = AppLogger(component="cdc_worker")
+
     while True:
         await asyncio.sleep(poll_interval)
 
         batch = get_messages()
         if not batch:
             continue
+
+        worker_log.info(
+            "Dispatching CDC batch to legacy transformer",
+            batch_size=len(batch),
+            pipeline_stage="cdc_worker_dispatch",
+        )
 
         manage_legacy_data_main(batch)
 
@@ -85,8 +94,9 @@ def cdc_events():
 def health() -> Dict[str, Any]:
     """
     Health-check endpoint that verifies:
-    - Kafka (broker + required CDC topics)
-    - legacy database connectivity
-    - clean database connectivity
+    * Kafka (broker + CDC topics)
+    * legacy database connectivity
+    * clean database connectivity
+    * Kafka Connect source and sink connectors
     """
     return health_check_main()

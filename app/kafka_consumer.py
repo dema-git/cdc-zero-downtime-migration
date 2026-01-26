@@ -127,6 +127,13 @@ def consume_loop():
                         "partition": msg.partition(),
                         "offset": msg.offset(),
                     })
+                log.info(
+                    "Enqueued CDC message from legacy topic",
+                    source_topic=msg.topic(),
+                    partition=msg.partition(),
+                    offset=msg.offset(),
+                    pipeline_stage="cdc_consume",
+                )
 
                 messages_since_commit += 1
                 messages_since_commit, last_commit_time = _maybe_commit(
@@ -174,8 +181,10 @@ def _maybe_commit(consumer, messages_since_commit, last_commit_time,
     try:
         consumer.commit()
         log.info(
-            "Committed offsets (auto in consume_loop)",
+            "Committed CDC offsets (auto in consume_loop)",
             messages_since_commit=messages_since_commit,
+            topics=TOPICS,
+            pipeline_stage="cdc_consume_commit",
         )
     except KafkaException as e:
         log.exception(

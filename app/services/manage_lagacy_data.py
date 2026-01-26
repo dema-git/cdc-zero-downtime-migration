@@ -11,6 +11,7 @@ from app.logging_config import AppLogger
 from app.models import CDCEvent
 from confluent_kafka import Producer, KafkaException
 import json
+from app.kafka_consumer import TOPICS
 
 log = AppLogger(component="legacy_data")
 
@@ -58,6 +59,13 @@ def manage_legacy_orders(event: CDCEvent) -> None:
     )
     try:
         producer.produce(topic=TOPIC_ORDERS, key=key_bytes, value=value_bytes)
+        log.info(
+            "Transformed legacy order and sent to cleared_orders topic",
+            source_table=event.table_name,
+            source_topic="cdc.public.legacy_orders",
+            target_topic=TOPIC_ORDERS,
+            pipeline_stage="transform_legacy_order",
+        )
     except KafkaException as e:
         log.exception(
             "Failed to produce legacy order event",
@@ -89,6 +97,13 @@ def manage_legacy_customers(event: CDCEvent) -> None:
     )
     try:
         producer.produce(topic=TOPIC_CUSTOMERS, key=key_bytes, value=value_bytes)
+        log.info(
+            "Transformed legacy customer and sent to cleared_customers topic",
+            source_table=event.table_name,
+            source_topic="cdc.public.legacy_customers",
+            target_topic=TOPIC_CUSTOMERS,
+            pipeline_stage="transform_legacy_customer",
+        )
     except KafkaException as e:
         log.exception(
             "Failed to produce legacy customer event",
@@ -109,7 +124,13 @@ def manage_legacy_data_main(data_batch: list[CDCEvent]) -> None:
     Dispatches CDC events to their corresponding handlers
     and ensures all Kafka messages are flushed.
     """
-    log.info("Processing CDC batch", batch_size=len(data_batch))
+    log.info(
+        "Processing CDC batch from legacy CDC topics",
+        batch_size=len(data_batch),
+        source_topics=TOPICS,
+        target_topics=[TOPIC_CUSTOMERS, TOPIC_ORDERS],
+        pipeline_stage="transform_legacy_to_cleared",
+    )
 
     processed_count = 0
     skipped_count = 0
@@ -123,11 +144,13 @@ def manage_legacy_data_main(data_batch: list[CDCEvent]) -> None:
     try:
         producer.flush(5)
         log.info(
-            "Kafka producer flush completed",
+            "Kafka producer flush completed for cleared topics",
             flush_timeout_seconds=5,
             processed_count=processed_count,
             skipped_count=skipped_count,
             batch_size=len(data_batch),
+            target_topics=[TOPIC_CUSTOMERS, TOPIC_ORDERS],
+            pipeline_stage="transform_legacy_to_cleared",
         )
     except KafkaException as e:
         log.exception(
