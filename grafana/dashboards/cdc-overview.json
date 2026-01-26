@@ -24,7 +24,7 @@
     {
       "datasource": {
         "type": "marcusolsson-json-datasource",
-        "uid": "afb905cry9udca"
+        "uid": "healthapi"
       },
       "fieldConfig": {
         "defaults": {
@@ -88,27 +88,31 @@
           "cacheDurationSeconds": 0,
           "datasource": {
             "type": "marcusolsson-json-datasource",
-            "uid": "afb905cry9udca"
+            "uid": "healthapi"
           },
           "fields": [
             {
-              "jsonPath": "$.details.kafka",
-              "name": "kafka"
+              "jsonPath": "$.kafka"
             },
             {
-              "jsonPath": "$.details.kafka_details.broker",
+              "jsonPath": "$.kafka_sink",
               "language": "jsonpath",
-              "name": "broker"
+              "name": ""
             },
             {
-              "jsonPath": "$.details.legacy_db",
+              "jsonPath": "$.kafka_source",
               "language": "jsonpath",
-              "name": "legacy_db"
+              "name": ""
             },
             {
-              "jsonPath": "$.details.clean_db",
+              "jsonPath": "$.legacy_db",
               "language": "jsonpath",
-              "name": "clean_db"
+              "name": ""
+            },
+            {
+              "jsonPath": "$.clean_db",
+              "language": "jsonpath",
+              "name": ""
             }
           ],
           "method": "GET",
@@ -334,7 +338,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 24,
         "x": 0,
         "y": 13
       },
@@ -357,12 +361,12 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{job=\"file-logs\"} | json | component=\"legacy_data\"\n| line_format \"{{ .timestamp }} | {{ .level }} | {{ .component }} | batch: {{ .batch_size }} processed: {{ .processed_count }}\"",
+          "expr": "{job=\"file-logs\"}\n| json\n| pipeline_stage != \"\"\n| line_format \"{{ .timestamp }} | {{ .component }} | {{ .pipeline_stage }} | {{ .msg }}\"",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Manage Legacy Data logs",
+      "title": "Logs",
       "type": "logs"
     },
     {
@@ -375,10 +379,52 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 9,
+        "w": 24,
         "x": 0,
         "y": 21
+      },
+      "id": 8,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "showControls": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "bfb8necip3y0we"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{job=\"file-logs\"}\n| json\n| component=\"legacy_data\"\n| line_format \"{{ .timestamp }} | {{ .pipeline_stage }} | {{ .msg }} | src_table={{ .source_table }} | src_topic={{ .source_topic }} | target={{ .target_topic }}\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Legacy Data (transform legacy → cleared)",
+      "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 30
       },
       "id": 5,
       "options": {
@@ -399,12 +445,12 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{job=\"file-logs\"} | json | component=\"kafka_consumer\"",
+          "expr": "{job=\"file-logs\"}\n| json\n| component=\"auto_generator\"\n| line_format \"{{ .timestamp }} | generate_legacy_data | customers={{ .customers_count }} orders={{ .orders_count }}\"\n",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Kafka Consumer logs",
+      "title": "Auto generator logs [INFO]",
       "type": "logs"
     },
     {
@@ -419,8 +465,8 @@
       "gridPos": {
         "h": 9,
         "w": 12,
-        "x": 0,
-        "y": 29
+        "x": 12,
+        "y": 30
       },
       "id": 4,
       "options": {
@@ -441,13 +487,139 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{job=\"file-logs\"} | json | component=\"auto_generator\"\n| line_format \"{{ .timestamp }} › {{ .level }} › {{ .msg }} | customers: {{ .customers_count }} orders: {{ .orders_count }}\"",
+          "expr": "{job=\"file-logs\"}\n| json\n| component=\"kafka_consumer\"\n| line_format \"{{ .timestamp }} | {{ .pipeline_stage }} | {{ .msg }} | topic={{ .source_topic }} | offset={{ .offset }} | msgs_since_commit={{ .messages_since_commit }}\"",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Faker logs",
+      "title": "Kafka Consumer logs [INFO]",
       "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "cdc_consume": {
+                  "index": 0
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "labels"
+          }
+        ]
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "bfb8necip3y0we"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{job=\"file-logs\"}\n| json\n| pipeline_stage != \"\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Pipeline stages",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "delimiter": ",",
+            "format": "json",
+            "jsonPaths": [],
+            "keepTime": false,
+            "replace": true,
+            "source": "Line"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "batch_size": true,
+              "customers_count": true,
+              "flush_timeout_seconds": true,
+              "level": true,
+              "logger": true,
+              "messages_since_commit": true,
+              "offset": true,
+              "orders_count": true,
+              "partition": true,
+              "pipeline_stage": true,
+              "processed_count": true,
+              "skipped_count": true,
+              "source_table": true,
+              "source_topics": true,
+              "target_topics": true,
+              "topics": true,
+              "trace_id": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "component": "Component",
+              "msg": "Message",
+              "source_topic": "Source",
+              "target_topic": "Target",
+              "timestamp": "Time"
+            }
+          }
+        }
+      ],
+      "type": "table"
     }
   ],
   "preload": false,
@@ -464,5 +636,5 @@
   "timezone": "browser",
   "title": "Statistic Dashboard",
   "uid": "ad6qqsp",
-  "version": 1
+  "version": 2
 }
