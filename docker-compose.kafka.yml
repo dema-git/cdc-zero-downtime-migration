@@ -1,7 +1,7 @@
 services:
   kafka:
     image: bashj79/kafka-kraft:latest
-    container_name: kafka2
+    container_name: kafka
     restart: always
     ports:
       - "${KAFKA_PORT}:9092"
@@ -21,7 +21,7 @@ services:
 
 
   kafdrop:
-    container_name: kafdrop2
+    container_name: kafdrop
     build:
       context: .
       dockerfile: kafdrop/Dockerfile
