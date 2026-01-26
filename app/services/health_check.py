@@ -7,33 +7,31 @@
 # for HTTP endpoint (/health)
 # #################################################################
 
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 import json
-import urllib.request
-import urllib.error
+from urllib import error, request
 
 from confluent_kafka import KafkaException
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-
+import os
 from app.logging_config import AppLogger
 from app.kafka_consumer import create_consumer, TOPICS
 from app.db import LegacyDBSession, CleanDBSession
 
 logger = AppLogger(component="health_check")
 
-KAFKA_CONNECT_URL = "http://connect:8083"
-KAFKA_SINK_CONNECTOR = "postgres_clean_sink"
-KAFKA_SOURCE_CONNECTOR = "my_postgres_connector"
+KAFKA_CONNECT_URL = os.getenv("KAFKA_CONNECT_URL")
+KAFKA_SINK_CONNECTOR = os.getenv("KAFKA_SINK_CONNECTOR")
+KAFKA_SOURCE_CONNECTOR = os.getenv("KAFKA_SOURCE_CONNECTOR")
 
 
 def http_get_json(url: str, timeout: int = 5) -> Dict[str, Any]:
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+        with request.urlopen(url, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
+    except error.HTTPError as e:
         raise Exception(f"HTTP {e.code}: {e.reason}")
-    except urllib.error.URLError as e:
+    except error.URLError as e:
         raise Exception(f"URL error: {e.reason}")
 
 

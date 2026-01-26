@@ -11,17 +11,17 @@ from app.logging_config import AppLogger
 from app.models import CDCEvent
 from confluent_kafka import Producer, KafkaException
 import json
+import os
 from app.kafka_consumer import TOPICS
 
 log = AppLogger(component="legacy_data")
 
-conf = {'bootstrap.servers': 'kafka:9092'}
+conf = {'bootstrap.servers': os.getenv("KAFKA_BROKERCONNECT")}
 producer = Producer(conf)
-topic = "cleared_customers"
 
 # TOPICS
-TOPIC_CUSTOMERS = "cleared_customers"
-TOPIC_ORDERS = "cleared_orders"
+TOPIC_CUSTOMERS = os.getenv("TOPIC_CUSTOMERS")
+TOPIC_ORDERS = os.getenv("TOPIC_ORDERS")
 
 # Mapping of warehouse city names to warehouse IDs.
 # These IDs correspond to the warehouse entries in the clean database.

@@ -14,12 +14,13 @@ import time
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from app.logging_config import AppLogger
 from .models import CDCEvent
+import os
 
 log = AppLogger(component="kafka_consumer")
 
-TOPICS = ["cdc.public.legacy_orders", "cdc.public.legacy_customers"]
-BOOTSTRAP = "kafka:9092"
-GROUP_ID = "time-window-consumer"
+TOPICS = [os.getenv("TOPICS_LEGACY_ORDERS"), os.getenv("TOPICS_LEGACY_CUSTOMERS")]
+BOOTSTRAP = os.getenv("KAFKA_BROKERCONNECT")
+GROUP_ID = os.getenv("GROUP_ID")
 
 # message queue for FastAPI
 message_queue = []
