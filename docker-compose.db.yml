@@ -1,6 +1,6 @@
 services:
   db_legacy:
-    image: postgres:16
+    image: postgres:16.11
     container_name: postgres_db_legacy
     restart: always
     ports:
@@ -21,6 +21,11 @@ services:
       - "max_replication_slots=10"
       - "-c"
       - "max_wal_senders=10"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_LEGACY_USER} -d legacy" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - app_network
 
@@ -39,12 +44,17 @@ services:
       - ./pgdata_second:/var/lib/postgresql/data
       - ./db/clean/init:/docker-entrypoint-initdb.d:ro
       - ./shared_logs:/shared/logs
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_CLEAN_USER} -d clean" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - app_network
 
 
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:9.12
     container_name: pgadmin_panel_web
     restart: always
     ports:

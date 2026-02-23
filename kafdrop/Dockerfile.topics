@@ -9,4 +9,4 @@ RUN apt-get update && \
 COPY scripts /scripts
 RUN chmod +x /scripts/*.sh
 
-ENTRYPOINT ["/scripts/wait-for-it.sh", "connect:8083", "--", "/scripts/create-topics.sh"]
+ENTRYPOINT ["/scripts/create-topics.sh"]

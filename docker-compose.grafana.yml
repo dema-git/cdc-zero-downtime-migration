@@ -1,6 +1,6 @@
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.5.1
     container_name: prometheus
     ports:
       - "${PROMETHEUS_PORT}:9090"
@@ -8,39 +8,55 @@ services:
       - ./prometheus:/etc/prometheus
       - /var/run/docker.sock:/var/run/docker.sock
       - ./logs:/logs
+    depends_on:
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - app_network
 
   loki:
-    image: grafana/loki:latest-amd64
+    image: grafana/loki:3.5.11
     container_name: loki
     ports:
       - "${LOKI_PORT}:3100"
     command: -config.file=/etc/loki/local-config.yaml
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     networks:
       - app_network
 
 
   promtail:
-    image: grafana/promtail:latest-amd64
+    image: grafana/promtail:3.6.6
     container_name: promtail
-    depends_on:
-      - loki
     volumes:
       - ./logs:/logs
       - ./prometheus/promtail-config.yml:/etc/promtail/config.yml:ro
     command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
     networks:
       - app_network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.3
     container_name: grafana
     ports:
       - "${GRAFANA_PORT}:3000"
-    depends_on:
-      - prometheus
-      - loki
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_DATASOURCES_DEFAULT_DATASOURCE_NAME: Loki
@@ -52,13 +68,13 @@ services:
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      loki:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
     networks:
       - app_network
 
 volumes:
   grafana_data:
-
-networks:
-  app_network:
-    external: true
-    name: ${CDC_NETWORK_NAME}

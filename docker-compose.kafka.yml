@@ -16,12 +16,25 @@ services:
       KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
     volumes:
       - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "cd /opt/kafka/bin && sh kafka-topics.sh --bootstrap-server localhost:${KAFKA_PORT} --list >/dev/null 2>&1 || exit 1"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      db_legacy:
+        condition: service_healthy
+      db_clean:
+        condition: service_healthy
     networks:
       - app_network
 
 
   kafdrop:
-    container_name: kafdrop
+    image: obsidiandynamics/kafdrop:4.2.0
     build:
       context: .
       dockerfile: kafdrop/Dockerfile
@@ -30,9 +43,9 @@ services:
       - "${KAFDROP_PORT}:9000"
     environment:
       KAFKA_BROKERCONNECT: "${KAFKA_BROKERCONNECT}"
-      JVM_OPTS: "-Xms128M -Xmx512M"
-    entrypoint: [ "./wait-for-it.sh", "kafka:9092", "--" ]
-    command: [ "java", "-jar", "kafdrop.jar" ]
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - app_network
 
@@ -56,7 +69,8 @@ services:
 
       CONNECT_PLUGIN_PATH: /kafka/connect
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     volumes:
       - connect-data:/kafka/connect
     networks:
@@ -70,6 +84,9 @@ services:
     volumes:
       - ./scripts:/scripts
       - ./connector:/connector
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - app_network
 
@@ -80,6 +97,9 @@ services:
     volumes:
       - ./scripts:/scripts
       - ./connector:/connector
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - app_network
 
@@ -90,14 +110,12 @@ services:
       dockerfile: kafdrop/Dockerfile.topics
     volumes:
       - ./scripts:/scripts
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - app_network
 
-
-networks:
-  app_network:
-    external: true
-    name: ${CDC_NETWORK_NAME}
 
 volumes:
   kafka_data:
