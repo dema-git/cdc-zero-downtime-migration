@@ -5,5 +5,5 @@ datasources:
     uid: healthapi
     type: marcusolsson-json-datasource
     access: proxy
-    url: http://api_app:${FAST_API_PORT}/health
+    url: http://api_app:8000/health
     isDefault: false
