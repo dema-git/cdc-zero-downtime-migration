@@ -26,11 +26,31 @@ GROUP_ID = os.getenv("GROUP_ID")
 message_queue = []
 queue_lock = threading.Lock()
 
+def _validate_config():
+    """
+    Validate required Kafka configuration before creating the Consumer.
+     Normal Python exception should be raised instead of code crash.
+    """
+    if not BOOTSTRAP:
+        raise RuntimeError("KAFKA_BROKERCONNECT is not configured")
+
+    if not GROUP_ID:
+        raise RuntimeError("GROUP_ID is not configured")
+
+    if not any(TOPICS):
+        raise RuntimeError(
+            "No topics configured: TOPICS_LEGACY_ORDERS / TOPICS_LEGACY_CUSTOMERS are empty"
+        )
+
+
 
 def create_consumer() -> Consumer:
     """
     Create and configure a Kafka consumer instance
     """
+
+    _validate_config()
+    
     return Consumer({
         "bootstrap.servers": BOOTSTRAP,
         "group.id": GROUP_ID,
