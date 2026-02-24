@@ -1,3 +1,28 @@
+###################################################################################################
+# main.py (FastAPI application)
+#
+# This module initializes the FastAPI service responsible for:
+#
+# 1. Running background workers:
+#       * auto_generator — periodically generates synthetic legacy data
+#         (customers + orders) and writes it into the legacy PostgreSQL database.
+#
+#       * cdc_worker — periodically retrieves CDC events consumed from Kafka
+#         (via kafka_consumer.get_messages) and forwards them to the transformation
+#         pipeline (manage_legacy_data_main), which normalizes the data and
+#         republishes it into the cleared_* Kafka topics.
+#
+# 2. Starting the Kafka CDC consumer loop in a dedicated background thread on app startup.
+#
+# 3. Exposing API endpoints:
+#       • /cdc/events — manually trigger processing of buffered CDC events.
+#       • /health     — full system health-check (Kafka, connectors, DBs).
+#
+# Overall, this module coordinates event generation, CDC consumption,
+# transformation, and routing of messages between legacy DB, Kafka, and the
+# cleaned data pipeline, all wrapped inside a FastAPI application.
+###################################################################################################
+
 import asyncio
 import random
 from fastapi import FastAPI
