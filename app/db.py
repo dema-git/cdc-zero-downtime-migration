@@ -7,12 +7,17 @@
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+import os
+from urllib.parse import quote_plus
 
 ##############
 # LEGACY DB
 ##############
 
-DATABASE_URL = "postgresql+psycopg2://postgres:pass12345%401@db_legacy:5432/legacy"
+POSTGRES_LEGACY_USER = os.getenv("POSTGRES_LEGACY_USER")
+POSTGRES_LEGACY_PASSWORD = quote_plus(os.getenv("POSTGRES_LEGACY_PASSWORD"))
+
+DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_LEGACY_USER}:{POSTGRES_LEGACY_PASSWORD}@db_legacy:5432/legacy"
 
 legacy_engine = create_engine(
     DATABASE_URL,
@@ -27,7 +32,10 @@ LegacyDBSession = sessionmaker(bind=legacy_engine, autoflush=False, autocommit=F
 # CLEAN DB
 ##############
 
-CLEAN_DATABASE_URL = "postgresql+psycopg2://admin2:pass12345%402@db_clean:5432/clean"
+POSTGRES_CLEAN_USER = os.getenv("POSTGRES_CLEAN_USER")
+POSTGRES_CLEAN_PASSWORD = quote_plus(os.getenv("POSTGRES_CLEAN_PASSWORD"))
+
+CLEAN_DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_CLEAN_USER}:{POSTGRES_CLEAN_PASSWORD}@db_clean:5432/clean"
 
 clean_engine = create_engine(
     CLEAN_DATABASE_URL,

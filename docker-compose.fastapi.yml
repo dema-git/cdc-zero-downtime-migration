@@ -3,8 +3,6 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile
-    env_file:
-        - .env
     container_name: faker_app
     ports:
       - "${FAST_API_PORT}:8000"
@@ -12,6 +10,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./logs:/logs
+    environment:
+      POSTGRES_LEGACY_USER: ${POSTGRES_LEGACY_USER}
+      POSTGRES_LEGACY_PASSWORD: ${POSTGRES_LEGACY_PASSWORD}
+      POSTGRES_CLEAN_USER: ${POSTGRES_CLEAN_USER}
+      POSTGRES_CLEAN_PASSWORD: ${POSTGRES_CLEAN_PASSWORD}
     depends_on:
       kafka:
         condition: service_healthy
