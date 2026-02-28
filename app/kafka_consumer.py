@@ -105,14 +105,22 @@ def consume_loop():
                 msg = consumer.poll(1.0)
 
                 if msg is None:
-                    _maybe_commit(consumer, messages_since_commit, last_commit_time,
-                                  COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
+                    messages_since_commit, last_commit_time = _maybe_commit(
+                        consumer,
+                        messages_since_commit,
+                        last_commit_time,
+                        COMMIT_EVERY_MESSAGES,
+                        COMMIT_EVERY_SECONDS)
                     continue
 
                 if msg.error():
                     if msg.error().code() == KafkaError._PARTITION_EOF:
-                        _maybe_commit(consumer, messages_since_commit, last_commit_time,
-                                      COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
+                        messages_since_commit, last_commit_time = _maybe_commit(
+                            consumer,
+                            messages_since_commit,
+                            last_commit_time,
+                            COMMIT_EVERY_MESSAGES,
+                            COMMIT_EVERY_SECONDS)
                         continue
 
                     log.error(
@@ -121,8 +129,12 @@ def consume_loop():
                         topic=msg.topic(),
                         partition=msg.partition(),
                     )
-                    _maybe_commit(consumer, messages_since_commit, last_commit_time,
-                                  COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
+                    messages_since_commit, last_commit_time = _maybe_commit(
+                        consumer,
+                        messages_since_commit,
+                        last_commit_time,
+                        COMMIT_EVERY_MESSAGES,
+                        COMMIT_EVERY_SECONDS)
                     continue
 
                 try:
@@ -135,8 +147,12 @@ def consume_loop():
                         partition=msg.partition(),
                         offset=msg.offset(),
                     )
-                    _maybe_commit(consumer, messages_since_commit, last_commit_time,
-                                  COMMIT_EVERY_MESSAGES, COMMIT_EVERY_SECONDS)
+                    messages_since_commit, last_commit_time = _maybe_commit(
+                        consumer,
+                        messages_since_commit,
+                        last_commit_time,
+                        COMMIT_EVERY_MESSAGES,
+                        COMMIT_EVERY_SECONDS)
                     continue
 
                 # Add message to kafka queue
@@ -148,15 +164,17 @@ def consume_loop():
                         "partition": msg.partition(),
                         "offset": msg.offset(),
                     })
+
+
+                messages_since_commit += 1
                 log.info(
                     "Enqueued CDC message from legacy topic",
                     source_topic=msg.topic(),
                     partition=msg.partition(),
                     offset=msg.offset(),
                     pipeline_stage="cdc_consume",
+                    messages_since_commit=messages_since_commit,
                 )
-
-                messages_since_commit += 1
                 messages_since_commit, last_commit_time = _maybe_commit(
                     consumer,
                     messages_since_commit,
