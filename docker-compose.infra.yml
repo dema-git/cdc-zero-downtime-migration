@@ -96,9 +96,9 @@ services:
           "CMD-SHELL",
           "cd /opt/kafka/bin && sh kafka-topics.sh --bootstrap-server localhost:${KAFKA_PORT} --list >/dev/null 2>&1 || exit 1",
         ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      interval: 12s
+      timeout: 10s
+      retries: 20
     depends_on:
       db_legacy:
         condition: service_healthy
