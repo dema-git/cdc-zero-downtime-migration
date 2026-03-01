@@ -88,7 +88,7 @@ docker compose -f docker-compose.tests.yml up --build --exit-code-from api_tests
 ```bash
 docker compose \
   -f docker-compose.infra.yml \
-  -f docker-compose.app.yml \
+  -f docker-compose.fastapi.yml \
   -f docker-compose.monitoring.yml \
   up -d --build
 ```
