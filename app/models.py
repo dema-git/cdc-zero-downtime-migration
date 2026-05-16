@@ -92,6 +92,9 @@ class CDCEvent:
     schema: JsonDict
     payload: JsonDict
     key: Optional[JsonDict] = None
+    topic: Optional[str] = None
+    partition: Optional[int] = None
+    offset: Optional[int] = None
 
 
     @property
