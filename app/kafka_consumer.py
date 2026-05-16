@@ -1,16 +1,15 @@
 ##########################################################
 # kafka_consumer.py
 #
-# This module runs a background Kafka consumer that listens to CDC topics
-# and stores incoming messages in a thread-safe queue. It converts raw Kafka
-# messages into CDCEvent objects and returns them when requested.
-# After processing, it manually commits offsets. The consumer restarts
-# automatically if any error occurs.
+# This module runs a background Kafka consumer that listens to CDC topics,
+# transforms messages into CDCEvent objects, and commits offsets only after
+# the transformation pipeline completes successfully.
 ##########################################################
 
 import threading
 import json
 import time
+from collections.abc import Callable
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from app.logging_config import AppLogger
 from .models import CDCEvent
@@ -21,10 +20,6 @@ log = AppLogger(component="kafka_consumer")
 TOPICS = [os.getenv("TOPICS_LEGACY_ORDERS"), os.getenv("TOPICS_LEGACY_CUSTOMERS")]
 BOOTSTRAP = os.getenv("KAFKA_BROKERCONNECT")
 GROUP_ID = os.getenv("GROUP_ID")
-
-# message queue for FastAPI
-message_queue = []
-queue_lock = threading.Lock()
 
 def _validate_config():
     """
@@ -77,18 +72,107 @@ def build_cdc_event(m: dict) -> CDCEvent:
         key=k,
         schema=schema,
         payload=payload,
+        topic=m.get("topic"),
+        partition=m.get("partition"),
+        offset=m.get("offset"),
     )
 
 
-def consume_loop():
-    """
-    Kafka consumer loop: polls messages, handles errors, queues valid events,
-    and restarts automatically on failure.
-    Also periodically commits offsets in the same thread.
-    """
-    COMMIT_EVERY_MESSAGES = 50
-    COMMIT_EVERY_SECONDS = 5.0
+def _message_to_event(msg) -> CDCEvent | None:
+    try:
+        payload = json.loads(msg.value().decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        log.exception(
+            "Failed to parse Kafka message as JSON",
+            error=str(e),
+            topic=msg.topic(),
+            partition=msg.partition(),
+            offset=msg.offset(),
+        )
+        return None
 
+    return build_cdc_event({
+        "key": msg.key(),
+        "data": payload,
+        "topic": msg.topic(),
+        "partition": msg.partition(),
+        "offset": msg.offset(),
+    })
+
+
+def _poll_batch(
+    consumer: Consumer,
+    max_messages: int = 50,
+    poll_timeout: float = 1.0,
+) -> list[CDCEvent]:
+    events: list[CDCEvent] = []
+
+    while len(events) < max_messages:
+        msg = consumer.poll(poll_timeout)
+
+        if msg is None:
+            break
+
+        if msg.error():
+            if msg.error().code() == KafkaError._PARTITION_EOF:
+                continue
+
+            log.error(
+                "Kafka error received",
+                error=str(msg.error()),
+                topic=msg.topic(),
+                partition=msg.partition(),
+            )
+            continue
+
+        event = _message_to_event(msg)
+        if event is None:
+            continue
+
+        events.append(event)
+        log.info(
+            "Polled CDC message from legacy topic",
+            source_topic=event.topic,
+            partition=event.partition,
+            offset=event.offset,
+            pipeline_stage="cdc_consume",
+            batch_size=len(events),
+        )
+
+    return events
+
+
+def _process_polled_batch(
+    consumer: Consumer,
+    process_batch: Callable[[list[CDCEvent]], None],
+) -> bool | None:
+    batch = _poll_batch(consumer)
+    if not batch:
+        return None
+
+    try:
+        process_batch(batch)
+        consumer.commit(asynchronous=False)
+        log.info(
+            "Committed CDC offsets after successful processing",
+            batch_size=len(batch),
+            topics=TOPICS,
+            pipeline_stage="cdc_consume_commit",
+        )
+        return True
+    except Exception as e:
+        log.exception(
+            "CDC batch processing failed; offsets were not committed",
+            error=str(e),
+            batch_size=len(batch),
+        )
+        return False
+
+
+def consume_loop(process_batch: Callable[[list[CDCEvent]], None]):
+    """
+    Poll CDC messages, process them, and commit offsets after successful processing.
+    """
     while True:
         consumer = None
 
@@ -98,90 +182,16 @@ def consume_loop():
             consumer.subscribe(TOPICS)
             log.info("Subscribed to topics", topics=TOPICS)
 
-            messages_since_commit = 0
-            last_commit_time = time.time()
-
             while True:
-                msg = consumer.poll(1.0)
-
-                if msg is None:
-                    messages_since_commit, last_commit_time = _maybe_commit(
-                        consumer,
-                        messages_since_commit,
-                        last_commit_time,
-                        COMMIT_EVERY_MESSAGES,
-                        COMMIT_EVERY_SECONDS)
+                result = _process_polled_batch(consumer, process_batch)
+                if result is None:
+                    time.sleep(3)
                     continue
 
-                if msg.error():
-                    if msg.error().code() == KafkaError._PARTITION_EOF:
-                        messages_since_commit, last_commit_time = _maybe_commit(
-                            consumer,
-                            messages_since_commit,
-                            last_commit_time,
-                            COMMIT_EVERY_MESSAGES,
-                            COMMIT_EVERY_SECONDS)
-                        continue
-
-                    log.error(
-                        "Kafka error received",
-                        error=str(msg.error()),
-                        topic=msg.topic(),
-                        partition=msg.partition(),
+                if result is False:
+                    raise RuntimeError(
+                        "CDC batch processing failed before offset commit"
                     )
-                    messages_since_commit, last_commit_time = _maybe_commit(
-                        consumer,
-                        messages_since_commit,
-                        last_commit_time,
-                        COMMIT_EVERY_MESSAGES,
-                        COMMIT_EVERY_SECONDS)
-                    continue
-
-                try:
-                    payload = json.loads(msg.value().decode("utf-8"))
-                except UnicodeDecodeError as e:
-                    log.exception(
-                        "Failed to parse Kafka message as JSON",
-                        error=str(e),
-                        topic=msg.topic(),
-                        partition=msg.partition(),
-                        offset=msg.offset(),
-                    )
-                    messages_since_commit, last_commit_time = _maybe_commit(
-                        consumer,
-                        messages_since_commit,
-                        last_commit_time,
-                        COMMIT_EVERY_MESSAGES,
-                        COMMIT_EVERY_SECONDS)
-                    continue
-
-                # Add message to kafka queue
-                with queue_lock:
-                    message_queue.append({
-                        "key": msg.key(),
-                        "data": payload,
-                        "topic": msg.topic(),
-                        "partition": msg.partition(),
-                        "offset": msg.offset(),
-                    })
-
-
-                messages_since_commit += 1
-                log.info(
-                    "Enqueued CDC message from legacy topic",
-                    source_topic=msg.topic(),
-                    partition=msg.partition(),
-                    offset=msg.offset(),
-                    pipeline_stage="cdc_consume",
-                    messages_since_commit=messages_since_commit,
-                )
-                messages_since_commit, last_commit_time = _maybe_commit(
-                    consumer,
-                    messages_since_commit,
-                    last_commit_time,
-                    COMMIT_EVERY_MESSAGES,
-                    COMMIT_EVERY_SECONDS,
-                )
 
         except KafkaException as e:
             log.exception(
@@ -208,57 +218,10 @@ def consume_loop():
             time.sleep(3)
 
 
-def _maybe_commit(consumer, messages_since_commit, last_commit_time,
-                  commit_every_messages, commit_every_seconds):
-    now = time.time()
-    should_commit_by_count = messages_since_commit >= commit_every_messages
-    should_commit_by_time = (now - last_commit_time) >= commit_every_seconds
-
-    if not (should_commit_by_count or should_commit_by_time):
-        return messages_since_commit, last_commit_time
-
-    try:
-        consumer.commit()
-        log.info(
-            "Committed CDC offsets (auto in consume_loop)",
-            messages_since_commit=messages_since_commit,
-            topics=TOPICS,
-            pipeline_stage="cdc_consume_commit",
-        )
-    except KafkaException as e:
-        log.exception(
-            "Error committing offsets in consume_loop",
-            error=str(e),
-        )
-
-    return 0, now
-
-
-def start_consumer_loop():
+def start_consumer_loop(process_batch: Callable[[list[CDCEvent]], None]):
     """
     Start the consumer loop in a background
     """
     log.info("Starting Kafka consumer thread...")
-    t = threading.Thread(target=consume_loop, daemon=True)
+    t = threading.Thread(target=consume_loop, args=(process_batch,), daemon=True)
     t.start()
-
-
-def get_messages() -> list[CDCEvent]:
-    """
-    Retrieve queued CDC events and convert to CDCEvent objects.
-    Offsets are committed by the consumer thread.
-    """
-    with queue_lock:
-        if not message_queue:
-            return []
-
-        batch = message_queue.copy()
-        message_queue.clear()
-
-    results: list[CDCEvent] = []
-
-    for msg in batch:
-        event = build_cdc_event(msg)
-        results.append(event)
-
-    return results

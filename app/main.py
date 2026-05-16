@@ -7,10 +7,9 @@
 #       * auto_generator — periodically generates synthetic legacy data
 #         (customers + orders) and writes it into the legacy PostgreSQL database.
 #
-#       * cdc_worker — periodically retrieves CDC events consumed from Kafka
-#         (via kafka_consumer.get_messages) and forwards them to the transformation
-#         pipeline (manage_legacy_data_main), which normalizes the data and
-#         republishes it into the cleared_* Kafka topics.
+#       * cdc_worker — consumes CDC events from Kafka, forwards them to the
+#         transformation pipeline, and commits offsets only after successful
+#         processing.
 #
 # 2. Starting the Kafka CDC consumer loop in a dedicated background thread on app startup.
 #
@@ -26,9 +25,9 @@
 import asyncio
 import random
 from fastapi import FastAPI
-from .kafka_consumer import start_consumer_loop, get_messages
+from .kafka_consumer import start_consumer_loop
 from .services.manage_lagacy_data import manage_legacy_data_main
-from .db import LegacyDBSession, CleanDBSession
+from .db import LegacyDBSession
 from .logging_config import AppLogger
 from .services.fake_data_generator import generate_customers, generate_orders
 from typing import Any, Dict
@@ -73,46 +72,21 @@ async def auto_generator():
 
 
 
-async def cdc_worker(poll_interval: float = 5.0):
-    """
-    Periodically fetches and processes CDC events from Kafka
-    """
-    worker_log = AppLogger(component="cdc_worker")
-
-    while True:
-        await asyncio.sleep(poll_interval)
-
-        batch = get_messages()
-        if not batch:
-            continue
-
-        worker_log.info(
-            "Dispatching CDC batch to legacy transformer",
-            batch_size=len(batch),
-            pipeline_stage="cdc_worker_dispatch",
-        )
-
-        manage_legacy_data_main(batch)
-
-
 @app.on_event("startup")
 async def startup_event():
     """
      Initializes Kafka consumer and starts background workers on app startup
     """
-    start_consumer_loop()
+    start_consumer_loop(process_batch=manage_legacy_data_main)
     asyncio.create_task(auto_generator())
-    asyncio.create_task(cdc_worker(poll_interval=5.0))
 
 
 @app.get("/cdc/events")
 def cdc_events():
     """
-    API endpoint to manually trigger processing of pending CDC events
+    API endpoint with CDC worker status.
     """
-    batch = get_messages()
-    manage_legacy_data_main(batch)
-    return {"count": len(batch), "events": batch}
+    return {"status": "cdc_worker_running"}
 
 
 @app.get("/health")
