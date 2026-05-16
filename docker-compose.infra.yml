@@ -153,6 +153,10 @@ services:
     build:
       context: .
       dockerfile: kafdrop/Dockerfile.connect
+    environment:
+      KAFKA_SOURCE_CONNECTOR: ${KAFKA_SOURCE_CONNECTOR}
+      POSTGRES_LEGACY_USER: ${POSTGRES_LEGACY_USER}
+      POSTGRES_LEGACY_PASSWORD: ${POSTGRES_LEGACY_PASSWORD}
     volumes:
       - ./scripts:/scripts
       - ./connector:/connector
@@ -166,6 +170,10 @@ services:
     build:
       context: .
       dockerfile: kafdrop/Dockerfile.sink
+    environment:
+      KAFKA_SINK_CONNECTOR: ${KAFKA_SINK_CONNECTOR}
+      POSTGRES_CLEAN_USER: ${POSTGRES_CLEAN_USER}
+      POSTGRES_CLEAN_PASSWORD: ${POSTGRES_CLEAN_PASSWORD}
     volumes:
       - ./scripts:/scripts
       - ./connector:/connector

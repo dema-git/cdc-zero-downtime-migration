@@ -1,7 +1,7 @@
 FROM debian:bullseye-slim
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl jq && \
+    apt-get install -y --no-install-recommends curl gettext-base jq && \
     rm -rf /var/lib/apt/lists/*
 
 
@@ -9,6 +9,5 @@ COPY scripts /scripts
 COPY connector /connector
 
 RUN chmod +x /scripts/*.sh
-RUN chmod +x /connector/*.json
 
-ENTRYPOINT ["/scripts/wait-for-connect.sh", "connect", "8083", "/connector/my_postgres_sink.json"]
+ENTRYPOINT ["/scripts/wait-for-connect.sh", "connect", "8083", "/connector/my_postgres_sink.json.template"]
