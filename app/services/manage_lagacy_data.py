@@ -74,6 +74,7 @@ def manage_legacy_orders(event: CDCEvent) -> None:
             table_name=event.table_name,
             key=event.key,
         )
+        raise
 
 def manage_legacy_customers(event: CDCEvent) -> None:
     """
@@ -112,6 +113,7 @@ def manage_legacy_customers(event: CDCEvent) -> None:
             table_name=event.table_name,
             key=event.key,
         )
+        raise
 
 TABLE_HANDLERS: dict = {
     "legacy_customers": manage_legacy_customers,
@@ -142,7 +144,11 @@ def manage_legacy_data_main(data_batch: list[CDCEvent]) -> None:
 
         processed_count += 1
     try:
-        producer.flush(5)
+        pending_count = producer.flush(5)
+        if isinstance(pending_count, int) and pending_count > 0:
+            raise KafkaException(
+                f"Kafka producer flush timed out with {pending_count} pending messages"
+            )
         log.info(
             "Kafka producer flush completed for cleared topics",
             flush_timeout_seconds=5,
@@ -160,4 +166,4 @@ def manage_legacy_data_main(data_batch: list[CDCEvent]) -> None:
             skipped_count=skipped_count,
             batch_size=len(data_batch),
         )
-
+        raise
