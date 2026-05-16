@@ -1,89 +1,77 @@
-# What is this and why does it exist
+# CDC Zero-Downtime Migration Pipeline
 
-Imagine you have an old PostgreSQL database that nobody wants to touch because something might break. But your analytics team needs fresh data — not once a day through a risky cron job, but continuously.
+This project is a local CDC pipeline for moving data from a legacy PostgreSQL database into a cleaner target database without changing the source application.
 
-This project solves that problem. It listens to real-time changes in a legacy database, cleans and transforms the data, and writes it into a separate analytics-ready database. You don’t need to modify the source system, and you can see everything that happens in the pipeline at any moment.
+The source database is treated as a system that already exists in production. Debezium reads changes from PostgreSQL WAL, Kafka keeps the raw CDC stream durable, a FastAPI worker transforms events into a cleaner model, and Kafka Connect writes the transformed records into the target database.
 
-The architecture is intentionally similar to a real production system: Kafka for buffering, Debezium for CDC, a transformation service, a target database, and full monitoring. Even if something fails, the pipeline recovers without losing data.
-&nbsp;
+The project is built to demonstrate the parts of a backend/data migration system that are easy to miss in small portfolio projects: CDC setup, offset handling, transformation boundaries, connector configuration, health checks, tests, and observability.
 
+![Architecture diagram](readme_assets/arch_diagram_cdc.png)
 
-## Tech stack
+## Stack
 
-- PostgreSQL (legacy + analytics)
-- Debezium (CDC via logical replication)
-- Kafka + Kafka Connect (JDBC Sink)
-- FastAPI (transformation service)
-- Docker Compose
-- Grafana + Prometheus + Loki (monitoring & logs)
+- PostgreSQL for the legacy and clean databases
+- Debezium for CDC from PostgreSQL logical replication
+- Kafka for buffering raw and transformed events
+- Kafka Connect JDBC Sink for writing transformed topics to the clean database
+- FastAPI background worker for event transformation
+- Grafana, Prometheus, Loki, and Promtail for monitoring and logs
+- Docker Compose for local infrastructure
 
-&nbsp;
+## Data Flow
 
-# 📌 Architecture Overview
+1. The generator inserts synthetic customers and orders into the legacy database.
+2. Debezium streams inserts and updates from `legacy_customers` and `legacy_orders` into Kafka topics.
+3. The FastAPI worker consumes the raw CDC topics, transforms the payloads, and publishes cleaned events.
+4. Kafka Connect JDBC Sink writes cleaned customer and order events into the target database.
+5. Health checks, metrics, and structured logs are available through the monitoring stack.
 
-![screenshot](readme_assets/arch_diagram_cdc.png)
+Raw Debezium topics are kept separate from transformed topics:
 
-
-# Main parts
-
-### 🔵 Legacy PostgreSQL + Debezium
-
-The source system consists of two tables: legacy_customers and legacy_orders.
-Debezium connects via logical replication (WAL) and streams every INSERT / UPDATE event into Kafka in real time.
-No changes to application code are required — only wal_level = logical.
-
-&nbsp;
----
-### 🟠 Kafka – Transport & Buffering
-Kafka acts as the transport layer and provides durability and buffering.
-
-#### Topics used:
-* cdc.public.* — raw CDC events from Debezium
-* cleared_customers / cleared_orders — cleaned, transformed events
-
-Raw topics are never mutated. If the transformer goes down, data stays safe in Kafka until the service recovers.
-
-&nbsp;
----
-### 🟢 FastAPI Transformer
-
-#### A custom transformation service that:
-* manually consumes CDC events using confluent-kafka
-* splits full_name → first_name + last_name
-* maps warehouse city → warehouse_id
-* commits Kafka offsets only after successful processing
-* is fully idempotent (same event processed twice does not break the data)
-
-This service forms the “Silver layer” between raw and clean events.
-
-&nbsp;
----
-### 🟣 Kafka Connect JDBC Sink
-
-The final stage of the pipeline.
-Connect workers read from cleaned topics and write into:
-* clean.customers
-* clean.orders
-
-The JDBC Sink supports batching, offset tracking, and schema evolution.
-
-&nbsp;
----
-### 🧪 Data Generator
-
-A synthetic load generator that inserts random customers and orders into the legacy database.
-This helps simulate real traffic without manual inserts.
-
-&nbsp;
----
-### 🛡️ Run Tests
-```bash
-docker compose -f docker-compose.tests.yml up --build --exit-code-from api_tests
+```text
+cdc.public.legacy_customers  ->  cleared_customers  ->  clean.customers
+cdc.public.legacy_orders     ->  cleared_orders     ->  clean.orders
 ```
 
-&nbsp;
----
-### 🚀 Running Locally
+## Local Setup
+
+Create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Start the full stack:
+
+```bash
+make up
+```
+
+Check running services:
+
+```bash
+make ps
+```
+
+Run tests:
+
+```bash
+make test
+```
+
+Follow the application logs:
+
+```bash
+make logs
+```
+
+Stop the stack:
+
+```bash
+make down
+```
+
+The same stack can also be started directly with Docker Compose:
 
 ```bash
 docker compose \
@@ -93,30 +81,122 @@ docker compose \
   up -d --build
 ```
 
-&nbsp;
----
-### 📊 Monitoring & Observability (Grafana + Prometheus + Loki) (http://localhost:3000/dashboards)
+## Services
 
-The project includes a complete observability stack that mirrors a real production setup:
-#### What you get
-* Grafana dashboards for Kafka, Connect, and FastAPI
-* Prometheus metrics scraping
-* Loki for centralized JSON logs (all services)
+| Service | URL / port | Notes |
+| --- | --- | --- |
+| FastAPI | `http://localhost:8000` | Runs the generator and CDC consumer worker |
+| Health check | `http://localhost:8000/health` | Checks Kafka, databases, and Kafka Connect connectors |
+| Kafka Connect | `http://localhost:8083` | Debezium source and JDBC sink connectors |
+| Kafdrop | `http://localhost:9000` | Kafka topic browser |
+| Grafana | `http://localhost:3000` | Dashboards and logs |
+| Prometheus | `http://localhost:9090` | Metrics |
+| pgAdmin | `http://localhost:8889` | Optional database UI |
 
-This provides full visibility into the pipeline — backlog, processing rate, consumer lag, connector status, and service health — making the system easy to debug and safe to operate.
+Default local Grafana credentials are `admin / admin`, unless an existing Grafana volume already contains another password.
 
+## Transformation Worker
 
-Example:
+The FastAPI service starts two background tasks on startup:
 
-![screenshot](readme_assets/monitoring_cdc.png)
+- an auto-generator that continuously writes sample customers and orders to the legacy database;
+- a Kafka consumer that reads CDC events from the raw Debezium topics.
 
-&nbsp;
----
-### ⭐ Key Features
+The consumer uses manual offset commits:
 
-* Real-time CDC pipeline using PostgreSQL WAL + Debezium
-* Raw → Clean architecture with idempotent transformations
-* Manual Kafka consumer with offset control
-* Automatic delivery guarantees via Kafka buffering
-* Full observability: Grafana + Prometheus + Loki
-* Docker-based infrastructure + tests
+- `enable.auto.commit` is disabled;
+- CDC messages are processed in batches;
+- offsets are committed only after the transformation pipeline completes successfully;
+- if processing or Kafka production fails, offsets are not committed and the batch can be retried.
+
+This gives the pipeline at-least-once processing semantics. Transformations should therefore stay idempotent, because the same event may be processed again after a failure.
+
+Examples of transformations:
+
+- split legacy customer names into cleaner fields;
+- map source values into target-friendly structures;
+- route transformed records into `cleared_customers` and `cleared_orders`.
+
+## Kafka Connect
+
+Connector definitions are stored as templates in `connector/*.json.template`.
+
+At startup, init containers render those templates from environment variables and register the connectors through the Kafka Connect REST API. This keeps local credentials out of tracked connector JSON files while still making the setup reproducible.
+
+The source connector reads from the legacy PostgreSQL database with Debezium. The sink connector writes transformed Kafka topics into the clean PostgreSQL database.
+
+## Observability
+
+Grafana includes a CDC overview dashboard with:
+
+- service health status;
+- generated customer and order activity;
+- recent pipeline events;
+- structured logs grouped by pipeline stage;
+- Kafka consumer logs showing successful offset commits after processing.
+
+![Monitoring dashboard](readme_assets/monitoring_cdc.png)
+
+Logs are written as structured application logs and collected by Promtail into Loki. Prometheus is used for metrics and service health visibility.
+
+## Tests
+
+The test suite focuses on the behavior that matters most for the pipeline:
+
+- CDC event transformation;
+- health-check behavior;
+- Kafka consumer parsing;
+- offset commit behavior;
+- producer failure handling.
+
+Run tests with:
+
+```bash
+make test
+```
+
+## Project Layout
+
+```text
+app/
+  kafka_consumer.py          # manual Kafka consumer and offset handling
+  main.py                    # FastAPI app and background workers
+  services/
+    manage_lagacy_data.py    # CDC transformation pipeline
+    health_check.py          # service health checks
+    fake_data_generator.py   # synthetic legacy data generator
+
+connector/
+  *.json.template            # Kafka Connect source and sink templates
+
+grafana/
+  dashboards/                # provisioned dashboard JSON
+  provisioning/              # Grafana datasources and dashboard config
+
+prometheus/
+  prometheus.yml             # Prometheus config
+  promtail-config.yml        # Promtail config
+
+tests/
+  test_*.py                  # focused pipeline and consumer tests
+```
+
+## Notes
+
+This is a local demonstration project, not a production deployment. It intentionally keeps the infrastructure compact so the whole pipeline can run through Docker Compose.
+
+The important design choices are still production-oriented:
+
+- source and target databases are separated;
+- raw CDC events are not mutated;
+- Kafka offsets are committed after successful processing;
+- connector config is template-based;
+- logs and health checks expose the state of the pipeline;
+- tests cover failure paths around offset commits and producer errors.
+
+Possible next improvements:
+
+- add consumer lag metrics;
+- add dead-letter handling for invalid events;
+- add schema migration tooling for the clean database;
+- add dashboard panels for error rate and processing throughput.
