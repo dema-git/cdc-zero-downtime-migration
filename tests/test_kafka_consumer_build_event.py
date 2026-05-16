@@ -32,3 +32,8 @@ def test_build_cdc_event_basic():
 
     # assert payload is extracted properly
     assert event.payload == {"id": 123, "name": "Test"}
+
+    # assert Kafka metadata is kept for logging and offset debugging
+    assert event.topic == "legacy.orders"
+    assert event.partition == 0
+    assert event.offset == 10
