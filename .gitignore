@@ -13,6 +13,9 @@ venv/
 .env.*
 !.env.example
 
+connector/*.json
+!connector/*.json.template
+
 pgdata_first/
 pgdata_second/
 logs/

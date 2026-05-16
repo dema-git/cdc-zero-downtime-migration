@@ -1,12 +1,12 @@
 {
-  "name": "postgres_clean_sink",
+  "name": "${KAFKA_SINK_CONNECTOR}",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
     "tasks.max": "1",
 
     "connection.url": "jdbc:postgresql://db_clean:5432/clean",
-    "connection.username": "admin2",
-    "connection.password": "pass12345@2",
+    "connection.username": "${POSTGRES_CLEAN_USER}",
+    "connection.password": "${POSTGRES_CLEAN_PASSWORD}",
 
     "topics": "cleared_customers,cleared_orders",
 
