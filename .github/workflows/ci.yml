@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Tests and local secret checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare local environment
+        run: cp .env.example .env
+
+      - name: Check local secrets are not tracked
+        run: scripts/check-no-local-secrets.sh
+
+      - name: Run tests
+        run: make test
+
+      - name: Clean up test containers
+        if: always()
+        run: docker compose -p cdc_tests -f docker-compose.tests.yml down -v --remove-orphans
