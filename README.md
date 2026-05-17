@@ -155,6 +155,8 @@ Run tests with:
 make test
 ```
 
+GitHub Actions runs the test suite on every push and pull request. The CI workflow also checks that local secret files such as `.env` are not tracked by git.
+
 ## Project Layout
 
 ```text
